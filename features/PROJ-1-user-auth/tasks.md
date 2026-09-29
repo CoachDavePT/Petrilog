@@ -22,9 +22,9 @@
 
 ## Ebene 2: Kernbausteine
 
-- [ ] T9 [P]  Eingaberegeln (E-Mail normalisieren und prüfen; neues Passwort 8–72 Zeichen; bestehendes Passwort Pflicht, höchstens 72) als Zod-Schemas für Browser und Server und alle deutschen Meldungen an einer Stelle, mit Unit-Tests  · files: src/lib/auth/schemas.ts, src/lib/auth/schemas.test.ts, src/lib/auth/messages.ts  · → AC-5, AC-8, EC-7
-- [ ] T10 [P]  Login-Bremse (erst eintragen, dann zählen; 5 pro Adresse bzw. 20 pro IP in 15 min; Wartezeit berechnen; Ausgang setzen), Mail-Grenze (3 pro Adresse und Stunde), Registrierungs-Grenze (5 pro IP und Stunde), IP-Ermittlung und 500-ms-Mindestantwortzeit, mit Unit-Tests  · files: src/lib/auth/throttle.ts, src/lib/auth/throttle.test.ts, src/lib/auth/client-ip.ts, src/lib/auth/min-duration.ts  · → AC-23, AC-24, AC-25, AC-26, EC-5, EC-11
-- [ ] T11 [P]  Proxy (Anmeldung erneuern, Abgemeldete zu `/login`, Angemeldete von den Login-Seiten zu `/`, Liste der öffentlichen Adressen) und Anmeldeprüfung für geschützte Seiten, die Supabase direkt fragt (ungültig → `/login?notice=session-ended`)  · files: src/proxy.ts, src/lib/auth/require-user.ts  · → AC-10, AC-11, AC-13, EC-9
+- [x] T9 [P]  Eingaberegeln (E-Mail normalisieren und prüfen; neues Passwort 8–72 Zeichen; bestehendes Passwort Pflicht, höchstens 72) als Zod-Schemas für Browser und Server und alle deutschen Meldungen an einer Stelle, mit Unit-Tests  · files: src/lib/auth/schemas.ts, src/lib/auth/schemas.test.ts, src/lib/auth/messages.ts  · → AC-5, AC-8, EC-7
+- [x] T10 [P]  Login-Bremse (erst eintragen, dann zählen; 5 pro Adresse bzw. 20 pro IP in 15 min; Wartezeit berechnen; Ausgang setzen), Mail-Grenze (3 pro Adresse und Stunde), Registrierungs-Grenze (5 pro IP und Stunde), IP-Ermittlung und 500-ms-Mindestantwortzeit, mit Unit-Tests  · files: src/lib/auth/throttle.ts, src/lib/auth/throttle.test.ts, src/lib/auth/client-ip.ts, src/lib/auth/min-duration.ts  · → AC-23, AC-24, AC-25, AC-26, EC-5, EC-11
+- [x] T11 [P]  Proxy (Anmeldung erneuern, Abgemeldete zu `/login`, Angemeldete von den Login-Seiten zu `/`, Liste der öffentlichen Adressen) und Anmeldeprüfung für geschützte Seiten, die Supabase direkt fragt (ungültig → `/login?notice=session-ended`)  · files: src/proxy.ts, src/lib/auth/require-user.ts  · → AC-10, AC-11, AC-13, EC-9
 
 ## Ebene 3: Server-Aktionen, Endpunkte und gemeinsame Bausteine
 
