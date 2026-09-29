@@ -77,9 +77,9 @@
 
 ### Ebene 8: Seiten
 
-- [ ] T42 [P]  Seite `/reset-password` prüft beim Öffnen die Freigabe: `valid` → Formular, `expired` → Freigabe entfernen und `/account?notice=reset-expired`, `none` → `/account`; nicht angemeldet → `/login` wie bisher  · files: src/app/reset-password/page.tsx  · → AC-33, EC-13
-- [ ] T43 [P]  Konto-Seite zeigt den Hinweis aus `?notice=reset-expired` als Warn-Notice oben, unbekannte Codes werden ignoriert  · files: src/app/(app)/account/page.tsx  · → EC-13
-- [ ] T44 [P]  Deutsche Seite für unbekannte Adressen: „Diese Seite gibt es nicht.“ mit Link „Zur Startseite“, hell, ohne Rahmen  · files: src/app/not-found.tsx  · → Technische Anforderung „Sprache“ (kein eigenes AC)
+- [x] T42 [P]  Seite `/reset-password` prüft beim Öffnen die Freigabe: `valid` → Formular, `expired` → Freigabe entfernen und `/account?notice=reset-expired`, `none` → `/account`; nicht angemeldet → `/login` wie bisher  · files: src/app/reset-password/page.tsx  · → AC-33, EC-13
+- [x] T43 [P]  Konto-Seite zeigt den Hinweis aus `?notice=reset-expired` als Warn-Notice oben, unbekannte Codes werden ignoriert  · files: src/app/(app)/account/page.tsx  · → EC-13
+- [x] T44 [P]  Deutsche Seite für unbekannte Adressen: „Diese Seite gibt es nicht.“ mit Link „Zur Startseite“, hell, ohne Rahmen  · files: src/app/not-found.tsx  · → Technische Anforderung „Sprache“ (kein eigenes AC)
 
 ### Ebene 9: Beim ersten Deploy
 

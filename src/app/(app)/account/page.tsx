@@ -2,12 +2,16 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { AccountActions } from '@/components/account/account-actions'
+import { FormNotice } from '@/components/auth/form-notice'
+import { accountNoticeText } from '@/lib/auth/messages'
 import { requireUser } from '@/lib/auth/require-user'
 
 export const metadata: Metadata = { title: 'Konto · Petrilog' }
 
-export default async function AccountPage() {
+// ?notice= carries only a short code; the one known code is reset-expired (EC-13).
+export default async function AccountPage({ searchParams }: { searchParams: Promise<{ notice?: string | string[] }> }) {
   const user = await requireUser()
+  const notice = accountNoticeText((await searchParams).notice)
   return (
     <main className="mx-auto flex w-full max-w-[440px] flex-col gap-6 px-5 pb-10 pt-6">
       {/* Until PROJ-2 brings the tab bar, a plain way back to the start page. */}
@@ -18,6 +22,7 @@ export default async function AccountPage() {
         <ChevronLeft className="size-5" aria-hidden />
         Startseite
       </Link>
+      {notice && <FormNotice tone="warning">{notice}</FormNotice>}
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Konto</p>
         <h1 className="text-2xl font-medium">Dein Konto</h1>
