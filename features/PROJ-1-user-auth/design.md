@@ -19,13 +19,13 @@ Adressen sind Code und bleiben deshalb englisch. Alle Texte auf den Seiten sind 
 | `/forgot-password` | Formular „Passwort vergessen“, danach die neutrale Bestätigung | nur abgemeldet (angemeldet → `/`) | AC-16, AC-25 |
 | `/auth/confirm` | Keine Seite, sondern ein Server-Endpunkt: nimmt den Link aus der Mail entgegen, prüft ihn und leitet weiter | alle | AC-3, AC-17, EC-1–EC-4 |
 | `/auth/link-expired` | „Dieser Link ist abgelaufen oder wurde schon benutzt.“ mit Formular für eine neue Mail und Link zum Login | alle | EC-1, EC-2 |
-| `/reset-password` | „Neues Passwort festlegen“ | nur mit Anmeldung (entsteht durch den Link aus der Mail), sonst → `/login` | AC-17, AC-18 |
+| `/reset-password` | „Neues Passwort festlegen“ | nur mit einer gültigen **Freigabe zum Festlegen** (entsteht beim Öffnen des Links aus der Mail, gilt 15 Minuten), angemeldet ohne Freigabe → `/account`, nicht angemeldet → `/login` | AC-17, AC-18, AC-33, EC-13 |
 | `/privacy` | Datenschutzerklärung (Platzhaltertext) | alle, ohne Anmeldung | AC-30 |
 | `/` | Startseite: Platzhalter bis PROJ-2, dann Sessions-Übersicht | nur angemeldet | AC-3, AC-7 |
 | `/account` | Konto-Seite | nur angemeldet | AC-19–AC-22, AC-27–AC-29 |
 | `/account/export` | Server-Endpunkt: liefert die Export-Datei zum Herunterladen | nur angemeldet | AC-29 |
 
-**Hinweise auf der Login-Seite** kommen über einen kurzen Code in der Adresse, zum Beispiel `/login?notice=account-deleted`. Erlaubt sind nur `account-deleted` („Dein Konto wurde gelöscht.“), `session-ended` („Bitte melde dich erneut an.“) und `email-confirmed` („E-Mail-Adresse bestätigt. Bitte melde dich an.“). Unbekannte Codes werden ignoriert. **Nie steht eine E-Mail-Adresse, ein Passwort oder ein Token in einer Adresse, die die App selbst erzeugt.** Deshalb zeigt `/register` den Zustand „Prüfe dein Postfach“ auf derselben Seite, statt mit der Adresse in der URL weiterzuleiten.
+**Hinweise auf der Login-Seite** kommen über einen kurzen Code in der Adresse, zum Beispiel `/login?notice=account-deleted`. Erlaubt sind nur `account-deleted` („Dein Konto wurde gelöscht.“), `session-ended` („Bitte melde dich erneut an.“) und `email-confirmed` („E-Mail-Adresse bestätigt. Bitte melde dich an.“). Unbekannte Codes werden ignoriert. Die Konto-Seite nimmt genauso genau einen Code an: `/account?notice=reset-expired` zeigt im Warnton „Die Zeit zum Festlegen ist abgelaufen. Ändere dein Passwort hier mit dem aktuellen Passwort oder melde dich ab und fordere über „Passwort vergessen“ einen neuen Link an.“ (EC-13). **Nie steht eine E-Mail-Adresse, ein Passwort oder ein Token in einer Adresse, die die App selbst erzeugt.** Deshalb zeigt `/register` den Zustand „Prüfe dein Postfach“ auf derselben Seite, statt mit der Adresse in der URL weiterzuleiten.
 
 ## Komponenten-Struktur
 
@@ -82,6 +82,10 @@ Angemeldeter Bereich (Layout prüft die Anmeldung; Kopfzeile und Tab-Leiste komm
 
 Rückmeldungen
 +-- Erfolgs-Notice oben, verschwindet nach ca. 2 s (sonner): „Passwort geändert“, „Mail gesendet“
++-- Warn-Notice auf der Konto-Seite aus ?notice=reset-expired (bleibt stehen, bis der Nutzer die Seite verlässt)
+
+Unbekannte Adresse (für alle, hell, ohne Rahmen)
++-- „Diese Seite gibt es nicht.“ mit Link „Zur Startseite“ (ersetzt die englische Standardseite von Next.js)
 ```
 
 **Wiederverwendete shadcn/ui-Bausteine** (alle schon installiert): `input`, `button`, `label`, `form`, `alert` (Notices), `alert-dialog` (Löschdialog), `sheet` (Passwort ändern), `sonner` (Erfolgs-Notice), `separator`, `card`. Neu gebaut wird nur das **Passwortfeld mit Anzeige-Knopf**, zusammengesetzt aus `input` und `button`. Es ist keine eigene Variante einer shadcn-Komponente.
@@ -91,8 +95,9 @@ Rückmeldungen
 ## Eingaberegeln (gemeinsam für Browser und Server)
 
 - **E-Mail-Adresse:** Leerzeichen am Anfang und Ende werden entfernt, alles wird kleingeschrieben (EC-7). Pflichtfeld, gültiges Format, höchstens 254 Zeichen. Fehlermeldung: „Bitte gib eine gültige E-Mail-Adresse ein.“
-- **Neues Passwort** (Registrierung, Zurücksetzen, Ändern): mindestens 8 und höchstens 72 Zeichen. 72 ist die technische Obergrenze des Passwort-Hashings. Keine Pflicht-Zeichenklassen, Leerzeichen erlaubt, nichts wird abgeschnitten. Meldungen: „Das Passwort muss mindestens 8 Zeichen haben.“ bzw. „Das Passwort darf höchstens 72 Zeichen haben.“
-- **Bestehendes Passwort** (Login, aktuelles Passwort, Löschdialog): nur Pflichtfeld, höchstens 72 Zeichen. Die Mindestlänge wird hier nicht geprüft, sonst würde die Meldung Hinweise über das Passwort geben.
+- **Neues Passwort** (Registrierung, Zurücksetzen, Ändern): mindestens 8 **Zeichen** und höchstens 72 **Bytes** in UTF-8-Kodierung (AC-34). 72 Bytes ist die technische Obergrenze des Passwort-Hashings. Ein einfaches Zeichen ist 1 Byte, ein Umlaut 2, ein Emoji 4. Keine Pflicht-Zeichenklassen, Leerzeichen erlaubt, nichts wird abgeschnitten. Meldungen: „Das Passwort muss mindestens 8 Zeichen haben.“ bzw. „Das Passwort ist zu lang. Erlaubt sind 72 Zeichen, Umlaute und Emojis zählen mehrfach.“ Weil die Eingabeprüfung vor jeder Grenze läuft, verbraucht ein zu langes Passwort kein Kontingent (AC-34).
+- **Bestehendes Passwort** (Login, aktuelles Passwort, Löschdialog): nur Pflichtfeld, höchstens 72 Bytes. Ein längeres wird ohne Prüfung bei Supabase wie ein falsches behandelt („E-Mail oder Passwort ist falsch.“ bzw. „Das aktuelle Passwort ist falsch.“), zählt aber als Fehlversuch zur Bremse. Die Mindestlänge wird hier nicht geprüft, sonst würde die Meldung Hinweise über das Passwort geben.
+- **Kaputte Anfragen** (eine Server Action bekommt statt eines Formulars z. B. nichts oder eine Liste): Die Antwort ist die allgemeine Meldung „Bitte prüfe deine Eingaben.“, nie ein roher englischer Text der Prüfbibliothek.
 
 ## Datenmodell
 
@@ -119,13 +124,14 @@ Jeder Eintrag hat:
   - `mail_request`: jede angeforderte Mail (Registrierung, „Mail erneut senden“, „Passwort vergessen“, neue Mail auf `/auth/link-expired`)
   - `signup`: jede angenommene Registrierung
 - **email**: normalisierte E-Mail-Adresse, höchstens 254 Zeichen. Pflicht bei `login_attempt` und `mail_request`, **leer** bei `signup` (Datensparsamkeit: dort zählt nur die IP).
-- **ip**: IP-Adresse des Aufrufers, höchstens 45 Zeichen. `unknown`, wenn sie sich nicht ermitteln lässt.
+- **ip**: IP-Adresse des Aufrufers, höchstens 45 Zeichen. Sie kommt nur aus einer vertrauenswürdigen Quelle (Abschnitt „IP-Adresse des Aufrufers“), sonst steht dort `untrusted`.
 - **outcome**: Ergebnis, Pflicht, einer von:
   - `pending`: Prüfung läuft. Zählt wie ein Fehlversuch, solange sie läuft.
   - `failed`: falsches Passwort oder unbekannte Adresse
   - `succeeded`: Passwort richtig. Dazu zählt auch „richtig, aber Konto noch nicht bestätigt“.
   - `allowed`: Mail bzw. Registrierung wurde zugelassen
   - `blocked`: wegen einer Sperre abgelehnt. Zählt nie mit.
+  - `duplicate`: nur bei `mail_request`. Dieselbe Mail wurde für diese Adresse in den letzten 10 Sekunden schon zugelassen (Doppel-Tipp, EC-5). Es geht keine zweite Mail raus, und der Eintrag zählt nicht zur Mail-Grenze.
 - **created_at**: Zeitpunkt, Pflicht, automatisch.
 
 - **Zugriff:** **Kein** Nutzer und kein anonymer Aufrufer darf lesen oder schreiben: Row Level Security ist an, es gibt keine Regeln, und alle Rechte für die öffentlichen Rollen sind entzogen. Nur der Next.js-Server greift mit dem Server-Schlüssel darauf zu.
@@ -135,6 +141,24 @@ Jeder Eintrag hat:
 ### Hilfsfunktion „Kontostatus einer Adresse“ (neu, nur für den Server)
 
 Eine Datenbankfunktion bekommt eine normalisierte E-Mail-Adresse und antwortet mit einem von drei Werten: `none` (kein Konto), `unconfirmed` (Konto, noch nicht bestätigt) oder `confirmed` (bestätigtes Konto). Aufrufen darf sie **nur** der Server mit dem Server-Schlüssel. Für anonyme und angemeldete Rollen ist sie gesperrt, sonst wäre sie ein Werkzeug, um herauszufinden, wer ein Konto hat. Sie wird nur bei der Registrierung gebraucht (EC-8).
+
+### Hilfsfunktion „Mail-Freigabe“ (neu, nur für den Server)
+
+Eine Datenbankfunktion entscheidet über jede Mail-Anforderung in **einem** Schritt. Sie bekommt die normalisierte E-Mail-Adresse und die IP und hält während der Entscheidung eine Sperre **pro Adresse**, sodass zwei gleichzeitige Anforderungen für dieselbe Adresse nacheinander drankommen. In diesem Schritt:
+1. Gibt es für die Adresse einen zugelassenen Eintrag `mail_request`, der jünger als 10 Sekunden ist, wird ein Eintrag `duplicate` angelegt, und die Antwort lautet **„schon unterwegs“**.
+2. Sonst: Gibt es in den letzten 60 Minuten schon 3 zugelassene Einträge, wird ein Eintrag `blocked` angelegt, und die Antwort lautet **„Grenze erreicht“** (AC-25).
+3. Sonst wird ein Eintrag `allowed` angelegt, und die Antwort lautet **„senden“**.
+
+Aufrufen darf sie **nur** der Server mit dem Server-Schlüssel, wie die Kontostatus-Funktion. Das ist die Garantie hinter EC-5: Bei einem Doppel-Tipp bekommt genau eine Anforderung „senden“.
+
+### Freigabe zum Festlegen eines neuen Passworts (neu, am Auth-Konto)
+
+Kein eigener Tabelleneintrag, sondern ein Vermerk in den **App-Metadaten** des Supabase-Auth-Kontos. Diese kann nur der Server mit dem Server-Schlüssel schreiben, der Nutzer selbst kann sie nicht ändern.
+- **password_reset.session_id**: Kennung der Anmeldung, die beim Öffnen des Links entstanden ist (Text, Pflicht). Die Freigabe gilt nur für diese Anmeldung, also nur auf diesem Gerät und in diesem Browser.
+- **password_reset.expires_at**: Zeitpunkt, Pflicht, 15 Minuten nach dem Öffnen des Links.
+- **Angelegt:** von `/auth/confirm`, wenn ein gültiger Link zum Zurücksetzen geöffnet wird. Eine neue Freigabe überschreibt die alte.
+- **Entfernt:** sobald das neue Passwort gespeichert ist. Ist sie beim Aufruf abgelaufen, wird sie ebenfalls entfernt. Mit dem Konto verschwindet sie ohnehin (AC-28).
+- **Gespeichert bis:** höchstens bis zur nächsten Nutzung von `/reset-password` oder bis zur Löschung des Kontos. Sie enthält keine personenbezogenen Daten außer dem Bezug zum eigenen Konto.
 
 ### Aufräumjobs in der Datenbank (neu)
 
@@ -153,7 +177,9 @@ Supabase speichert E-Mail-Adresse, Passwort-Hash, die Zeitpunkte von Anlage, Bes
 Jede Passwortprüfung (Login, aktuelles Passwort, Löschdialog) läuft durch denselben Baustein:
 
 1. **Erst eintragen, dann zählen.** Der Server legt einen Eintrag `login_attempt` mit `pending` an und zählt danach die Einträge `pending` und `failed` der letzten 15 Minuten, einmal für diese E-Mail-Adresse und einmal für diese IP. Der eigene Eintrag zählt mit.
-2. **Gesperrt**, wenn es für die Adresse **mehr als 5** Einträge sind (also schon 5 Fehlversuche vorlagen) oder für die IP **mehr als 20**. Der eigene Eintrag wird dann `blocked`, das Passwort wird **gar nicht geprüft**, und der Nutzer sieht „Zu viele Versuche. Bitte versuche es in X Minuten erneut.“ X ist die aufgerundete Zeit bis 15 Minuten nach dem jüngsten gezählten Fehlversuch, mindestens 1. Gilt die Sperre für Adresse und IP, zählt die längere Wartezeit. Ein abgelehnter Versuch verlängert die Sperre nicht (AC-23, AC-24).
+2. **Gesperrt**, wenn es für die Adresse **mehr als 5** Einträge sind (also schon 5 Fehlversuche vorlagen) oder für die IP **mehr als 20**. Der eigene Eintrag wird dann `blocked`, das Passwort wird **gar nicht geprüft**, und der Nutzer sieht „Zu viele Versuche. Bitte versuche es in X Minuten erneut.“ Gilt die Sperre für Adresse und IP, zählt die längere Wartezeit. Ein abgelehnter Versuch verlängert die Sperre nicht (AC-23, AC-24).
+   - **So wird X berechnet:** Grundlage ist der jüngste Eintrag `failed` der letzten 15 Minuten, der eigene nicht mitgezählt. X ist die aufgerundete Zeit bis 15 Minuten danach, mindestens 1 und höchstens 15. Ein Zeitstempel in der Zukunft (gleichzeitige Anfragen) zählt als „jetzt“.
+   - **Kommt die Sperre nur durch gleichzeitig laufende Prüfungen zustande** (es gibt noch keinen `failed`-Eintrag, etwa bei einem Schwall paralleler Anfragen), ist X = 1. Die Sperre ist in diesem Fall nur so lang, wie die anderen Prüfungen laufen, und die Meldung verspricht nichts anderes.
 3. **Sonst prüft Supabase das Passwort.** Ist es richtig, wird der Eintrag `succeeded`. Das gilt auch, wenn das Konto noch unbestätigt ist, denn das Passwort war ja richtig. Ist es falsch oder die Adresse unbekannt, wird der Eintrag `failed`. Ist Supabase nicht erreichbar, wird der Eintrag gelöscht und der Nutzer sieht die Verbindungs-Notice (EC-6).
 
 Warum „erst eintragen, dann zählen“: Schickt ein Skript 50 Versuche gleichzeitig, sieht jeder einzelne die anderen schon als `pending` und wird abgelehnt. Würde erst gezählt und danach eingetragen, kämen alle 50 durch.
@@ -162,8 +188,23 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 
 ### Mail-Grenze und Registrierungs-Grenze
 
-- **Mail-Grenze (AC-25):** Bei jeder Mail-Anforderung legt der Server zuerst einen Eintrag `mail_request` an und zählt dann die zugelassenen Einträge der letzten 60 Minuten für diese Adresse, den eigenen mitgezählt. Bei **mehr als 3** wird der Eintrag `blocked`, es geht keine Mail raus, und der Nutzer sieht „Bitte warte etwas, bevor du eine weitere Mail anforderst.“ Sonst wird er `allowed`. Gezählt wird **unabhängig davon, ob es das Konto gibt**.
+- **Mail-Grenze (AC-25, EC-5):** Jede Mail-Anforderung fragt die Hilfsfunktion „Mail-Freigabe“ (siehe Datenmodell).
+  - „senden“ → die Mail wird angefordert.
+  - „schon unterwegs“ → es geht keine Mail raus. Der Nutzer sieht **dieselbe Erfolgsmeldung** wie bei „senden“, denn die erste Mail kommt ja an.
+  - „Grenze erreicht“ → keine Mail, der Nutzer sieht „Bitte warte etwas, bevor du eine weitere Mail anforderst.“
+  
+  Gezählt wird **unabhängig davon, ob es das Konto gibt**. Das gilt für alle vier Wege: Registrierung, „Mail erneut senden“, „Passwort vergessen“ und „Neue Mail anfordern“.
 - **Registrierungs-Grenze (AC-26):** Bei jeder Registrierung, die die Eingabeprüfung bestanden hat, legt der Server einen Eintrag `signup` (nur IP) an und zählt die zugelassenen der letzten 60 Minuten für diese IP. Bei **mehr als 5** sieht der Besucher „Zu viele Registrierungen. Bitte versuche es später erneut.“, und es passiert nichts weiter.
+
+### IP-Adresse des Aufrufers (AC-24, AC-26)
+
+Die Grenzen pro IP helfen nur, wenn der Aufrufer die IP nicht selbst bestimmen kann. Ein Header wie `x-forwarded-for` kommt aber vom Aufrufer, solange kein Proxy davor ihn überschreibt. Deshalb gilt:
+
+- **Eine neue Einstellung `TRUSTED_CLIENT_IP_HEADER`** (Umgebungsvariable, nur Server, ohne `NEXT_PUBLIC_`) nennt den **einen** Header, den der Hoster garantiert selbst setzt. Beispiele: `x-real-ip` oder `x-vercel-forwarded-for`.
+- **Leer oder nicht gesetzt (Standard, auch lokal):** Die App traut **keinem** Header. Alle Anfragen zählen unter derselben IP `untrusted`. Die Grenzen pro IP wirken dann für alle zusammen, also streng, aber nicht umgehbar. Lokal mit einem Nutzer ist das ohne Folgen.
+- **Gesetzt:** Der Wert dieses Headers ist die IP. Ist es `x-forwarded-for`, zählt der **letzte** Eintrag, also der, den der Proxy selbst angehängt hat, nie der erste. Fehlt der Header oder ist er leer, gilt `untrusted`.
+- Die Einstellung kommt mit einem Platzhalter (leer) in `.env.local.example`. Welcher Wert beim Hoster stimmt, wird beim ersten `/deploy` festgelegt (Einstellungen unten).
+- **Für `/qa`:** AC-24 und AC-26 werden mit gesetztem `TRUSTED_CLIENT_IP_HEADER=x-forwarded-for` geprüft (simuliert einen Proxy). Zusätzlich wird geprüft, dass ohne die Einstellung ein gefälschter Header die Grenze nicht umgeht.
 
 ### Registrierung (AC-1, AC-2, AC-4, AC-5, AC-6, AC-26, EC-5, EC-8)
 
@@ -175,14 +216,16 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
    - `confirmed`: Es passiert nichts, auch keine Mail (AC-6).
 4. In allen drei Fällen zeigt die Seite denselben Zustand „Prüfe dein Postfach“ mit der eingegebenen Adresse.
 
-„Konto anlegen“ ist gesperrt, solange die Anfrage läuft. Kommt ein Doppelklick trotzdem doppelt an, verhindert die Datenbank ein zweites Konto, weil jede Adresse nur einmal vorkommen darf. Supabase verschickt pro Konto höchstens eine Mail je 10 Sekunden (EC-5).
+„Konto anlegen“ ist gesperrt, solange die Anfrage läuft. Kommt ein Doppelklick trotzdem doppelt an, verhindert die Datenbank ein zweites Konto, weil jede Adresse nur einmal vorkommen darf. Die zweite Anfrage bekommt von der Mail-Freigabe „schon unterwegs“ und verschickt keine Mail (EC-5).
+
+**Zwei gleichzeitige Registrierungen derselben neuen Adresse:** Beide sehen den Kontostatus `none`, aber nur eine legt das Konto an. Die andere bekommt von Supabase einen Fehler (je nach Zeitpunkt „schon registriert“ oder ein allgemeiner Datenbankfehler beim Anlegen). Bei **jedem** Fehler beim Anlegen fragt der Server den Kontostatus noch einmal ab. Gibt es das Konto jetzt, sieht auch der zweite Besucher „Prüfe dein Postfach“ (AC-1, AC-6). Nur wenn es weiterhin kein Konto gibt, erscheint die Verbindungs-Notice.
 
 ### E-Mail-Bestätigung und Links aus Mails (AC-3, AC-17, EC-1–EC-4)
 
 - Die Mails (deutsche Vorlagen) enthalten einen Link auf `/auth/confirm` mit einem einmaligen Token und dem Typ (`email` für die Bestätigung, `recovery` für das Zurücksetzen).
 - `/auth/confirm` akzeptiert nur diese beiden Typen und lässt Supabase das Token prüfen. Danach leitet es **immer** auf eine Adresse ohne Token weiter.
   - Bestätigung gültig → der Nutzer ist angemeldet → `/` (AC-3). Entsteht dabei ausnahmsweise keine Anmeldung → `/login?notice=email-confirmed` (EC-4).
-  - Zurücksetzen gültig → angemeldet → `/reset-password`. Wurde der Link aber vor **mehr als 1 Stunde** angefordert (Supabase merkt sich den Zeitpunkt der letzten Mail zum Zurücksetzen), meldet der Server den Nutzer sofort wieder ab und schickt ihn zu `/auth/link-expired` (AC-17).
+  - Zurücksetzen gültig → angemeldet → der Server legt die **Freigabe zum Festlegen** an (Kennung dieser neuen Anmeldung, gültig 15 Minuten) → `/reset-password`. Wurde der Link aber vor **mehr als 1 Stunde** angefordert (Supabase merkt sich den Zeitpunkt der letzten Mail zum Zurücksetzen), meldet der Server den Nutzer sofort wieder ab, legt keine Freigabe an und schickt ihn zu `/auth/link-expired` (AC-17). Lässt sich die Freigabe nicht speichern, wird der Nutzer ebenfalls abgemeldet und sieht die Verbindungs-Notice auf `/auth/link-expired`.
   - Ungültig, abgelaufen oder schon benutzt → `/auth/link-expired?type=signup` bzw. `?type=recovery` (EC-1, EC-2).
 - **Gültigkeit:** Supabase kennt nur eine Laufzeit für alle Mail-Links. Wir setzen sie auf 24 Stunden (AC-3). Die kürzere Stunde für das Zurücksetzen erzwingt die App wie oben beschrieben.
 - **Nur der neueste Link zum Zurücksetzen gilt (EC-3):** Supabase hält pro Konto genau ein gültiges Token dieser Art, jede neue Anforderung ersetzt das alte. `/qa` prüft das ausdrücklich.
@@ -211,7 +254,13 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 ### Passwort vergessen und neu festlegen (AC-16–AC-18)
 
 - `/forgot-password`: Eingaben prüfen, dann die Mail-Grenze. Danach bittet der Server Supabase, eine Mail zum Zurücksetzen zu verschicken. Supabase schickt sie nur, wenn es das Konto gibt, und antwortet in beiden Fällen gleich. Der Nutzer sieht immer „Falls es ein Konto zu dieser Adresse gibt, haben wir dir einen Link geschickt.“
-- `/reset-password`: neues Passwort (Regeln oben). Der Server speichert es, meldet **alle anderen Geräte** ab und leitet zu `/` mit der Erfolgs-Notice „Passwort geändert“ (AC-17, AC-18). Ist das neue Passwort gleich dem alten, meldet Supabase das, und der Nutzer sieht „Das neue Passwort muss sich vom bisherigen unterscheiden.“
+- `/reset-password` prüft **beim Öffnen und noch einmal beim Abschicken** die Freigabe zum Festlegen (AC-33):
+  - **gültig** heißt: Die Freigabe existiert, ist noch nicht abgelaufen, und ihre Anmeldungskennung ist die der aktuellen Anmeldung. Die Kennung liest der Server aus der geprüften Anmeldung, nie aus einer Eingabe des Browsers.
+  - **gültig** → Formular bzw. neues Passwort speichern (Regeln oben). Der Server speichert es, entfernt die Freigabe, meldet **alle anderen Geräte** ab und leitet zu `/` mit der Erfolgs-Notice „Passwort geändert“ (AC-17, AC-18). Ist das neue Passwort gleich dem alten, meldet Supabase das, und der Nutzer sieht „Das neue Passwort muss sich vom bisherigen unterscheiden.“ Die Freigabe bleibt dann bestehen.
+  - **abgelaufen** (sie existiert für diese Anmeldung, die 15 Minuten sind aber um) → nichts wird gespeichert, die Freigabe wird entfernt, weiter zu `/account?notice=reset-expired` (EC-13).
+  - **keine Freigabe für diese Anmeldung** (regulär angemeldet, oder die Freigabe gehört zu einem anderen Gerät) → nichts wird gespeichert, weiter zu `/account` ohne Hinweis (AC-33).
+  - **nicht angemeldet** → `/login` wie bisher.
+- **Zweite Absicherung in Supabase:** „Sicherer Passwortwechsel“ ist an. Supabase lässt dann ein neues Passwort nur für eine Anmeldung zu, die jünger als 24 Stunden ist. Wer die Supabase-Schnittstelle direkt aufruft, kann das Passwort also mit einer älteren Anmeldung nicht ohne neue Anmeldung ändern. Unsere eigenen Wege sind davon nicht betroffen: Beim Zurücksetzen ist die Anmeldung gerade entstanden, und „Passwort ändern“ meldet den Nutzer bei der Prüfung des aktuellen Passworts ohnehin neu an. Ganz geschlossen ist der direkte Weg damit nicht. Das gehört zur Deploy-Sperre der Spec. **`/build` prüft ausdrücklich**, dass „Passwort ändern“ auch mit einer Anmeldung funktioniert, die älter als 24 Stunden ist (Zeitpunkt der Anmeldung in der lokalen Datenbank zurückdatieren). Dafür muss das Speichern die Anmeldung aus der gerade erfolgten Passwortprüfung verwenden.
 
 ### Konto-Seite (AC-19–AC-21, AC-27–AC-29, EC-11, EC-12)
 
@@ -224,7 +273,9 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 | Aktion | Wer | Abgelehnt, wenn |
 |---|---|---|
 | Registrieren, Login, „Passwort vergessen“, neue Mail anfordern | jeder Besucher | Eingaben ungültig, eine Grenze ist erreicht, oder (Login, Registrierung) der Besucher ist schon angemeldet |
-| Neues Passwort festlegen | nur mit Anmeldung aus dem Link zum Zurücksetzen oder regulär angemeldet | nicht angemeldet |
+| Neues Passwort festlegen (ohne aktuelles Passwort) | nur mit gültiger Freigabe zum Festlegen: Link zum Zurücksetzen vor höchstens 15 Minuten geöffnet, in genau dieser Anmeldung | nicht angemeldet, keine Freigabe für diese Anmeldung, Freigabe abgelaufen |
+| Freigabe zum Festlegen anlegen, lesen, entfernen | nur der Next.js-Server mit dem Server-Schlüssel | jeder Aufruf aus dem Browser (App-Metadaten sind für Nutzer nicht schreibbar) |
+| Mail-Freigabe (Datenbank) | nur der Next.js-Server mit dem Server-Schlüssel | jeder Aufruf aus dem Browser oder mit öffentlichem Schlüssel |
 | Konto-Seite, Passwort ändern, Export, Löschen, Abmelden | nur angemeldet, immer nur fürs eigene Konto | nicht angemeldet, Anmeldung nicht mehr gültig, Passwort falsch, Sperre |
 | Eigenes Profil lesen | angemeldeter Besitzer | jede andere Person |
 | Protokoll der Login-Bremse, Kontostatus, Konto löschen (Datenbank) | nur der Next.js-Server mit dem Server-Schlüssel | jeder Aufruf aus dem Browser oder mit öffentlichem Schlüssel |
@@ -234,6 +285,7 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 - **Design-System anwenden:** Farben aus `docs/design-system.md` als Tokens in `src/app/globals.css` (hell und dunkel), die Schriften Zilla Slab, Barlow und IBM Plex Mono über `next/font`, die Sprache der Seite auf Deutsch (`lang="de"`), Titel und Beschreibung der App. PROJ-2 baut darauf auf.
 - **Sicherheits-Header** in `next.config` nach `docs/stacks/framework-nextjs.md`: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: origin-when-cross-origin` und `Strict-Transport-Security` mit `includeSubDomains`. Der Referrer-Schutz sorgt außerdem dafür, dass kein Token aus einem Mail-Link an fremde Seiten weitergegeben wird.
 - **Startseite `/`:** ersetzt die Beispielseite von Next.js durch einen schlichten Platzhalter. Mit PROJ-2 wird sie zur Sessions-Übersicht.
+- **Deutsche Seite für unbekannte Adressen:** ersetzt „404: This page could not be found.“ durch „Diese Seite gibt es nicht.“ mit Link zur Startseite. Nicht angemeldete Besucher landen wie bisher schon vorher beim Login (AC-13). Gilt app-weit, auch für PROJ-2.
 
 ## Wo die Teile liegen (für `/build`)
 
@@ -242,10 +294,11 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 - `src/lib/auth/`: Eingaberegeln, alle deutschen Meldungen an einer Stelle (damit gleiche Fälle garantiert gleich lauten), Login-Bremse, Mail- und Registrierungs-Grenze, Ermittlung der IP-Adresse, Server Actions
 - `src/app/(auth)/`: Layout für Abgemeldete sowie `login`, `register`, `forgot-password`
 - `src/app/(app)/`: Layout mit Anmeldeprüfung, Startseite `/`, `account/` mit dem Endpunkt `export`
-- `src/app/auth/confirm` (Endpunkt), `src/app/auth/link-expired`, `src/app/reset-password`, `src/app/privacy`
+- `src/app/auth/confirm` (Endpunkt), `src/app/auth/link-expired`, `src/app/reset-password`, `src/app/privacy`, `src/app/not-found.tsx` (deutsche Seite für unbekannte Adressen)
+- `src/lib/auth/`: dazu die Freigabe zum Festlegen (anlegen, prüfen, entfernen) an einer Stelle, genutzt von `/auth/confirm`, der Seite `/reset-password` und ihrer Server Action
 - `src/components/auth/`: Passwortfeld, Formulare, „Prüfe dein Postfach“
 - `src/components/account/`: Sheet „Passwort ändern“, Löschdialog, Zeilen der Konto-Seite
-- `supabase/migrations/`: Profile samt automatischer Anlage und Row Level Security, Protokoll der Login-Bremse, Kontostatus-Funktion, Aufräumjobs
+- `supabase/migrations/`: Profile samt automatischer Anlage und Row Level Security, Protokoll der Login-Bremse, Kontostatus-Funktion, Aufräumjobs. **Neue Migration** (die vorhandenen bleiben unverändert): Ergebnis `duplicate` im Protokoll erlauben und die Funktion „Mail-Freigabe“ anlegen, nur für den Server aufrufbar
 - `supabase/templates/`: deutsche Mailvorlagen (Bestätigung, Zurücksetzen)
 - `supabase/config.toml`: siehe unten
 
@@ -257,7 +310,8 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 | E-Mail-Bestätigung | an | Produktentscheidung | AC-1, AC-9 |
 | Mindestlänge Passwort | 8 | zweite Absicherung neben der App | AC-5 |
 | Gültigkeit der Mail-Links | 24 Stunden (86 400 s) | Bestätigung; das Zurücksetzen verkürzt die App auf 1 Stunde | AC-3, AC-17 |
-| Mindestabstand zwischen Mails pro Konto | 10 Sekunden | Doppelklick erzeugt keine zweite Mail | EC-5 |
+| Mindestabstand zwischen Mails pro Konto | 10 Sekunden | Zweite Ebene hinter der Mail-Freigabe. Greift allein bei gleichzeitigen Anfragen nicht zuverlässig (QA, BUG-4). | EC-5 |
+| Sicherer Passwortwechsel (`secure_password_change`) | an | Neues Passwort nur mit einer Anmeldung, die jünger als 24 Stunden ist. Zweite Ebene hinter der Freigabe zum Festlegen. | AC-21, AC-33 |
 | Supabase-eigene Grenzen für Mails, Anmeldungen und Link-Prüfungen | lokal großzügig (100 Mails pro Stunde; 100 Anmeldungen bzw. Link-Prüfungen pro 5 Minuten) | Lokal ist die Bremse der App die maßgebliche, und `/qa` misst sie. Die Supabase-Grenzen würden sonst vorher auslösen. | AC-23–AC-26 |
 | Mailvorlagen Bestätigung und Zurücksetzen | deutsche Vorlagen mit Link auf `/auth/confirm` (Token + Typ). Betreff: „Bestätige deine E-Mail-Adresse für Petrilog“ bzw. „Neues Passwort für Petrilog“. Die Bestätigungsmail sagt zusätzlich: „Du hast dich nicht registriert? Dann ignoriere diese Mail.“ | Sprache und Link-Format | AC-1, AC-16 |
 
@@ -281,8 +335,11 @@ Sonst nichts Neues: `@supabase/ssr`, `@supabase/supabase-js`, `zod`, `react-hook
 | Eigener Mail-Dienst (SMTP) | gehostetes Supabase → Authentication → Emails → SMTP Settings | go-live | Zugangsdaten des gewählten Dienstes (offene Frage in der Spec) | Der eingebaute Versand von Supabase schafft nur wenige Mails pro Stunde und nur an Team-Mitglieder | AC-1, AC-16 |
 | Supabase-eigene Grenzen | gehostetes Supabase → Authentication → Rate Limits | go-live | Mails pro Stunde passend zum Mail-Dienst, sonst die Standardwerte | Supabase-Schutz als zweite Ebene | AC-23–AC-26 |
 | AVV mit Supabase | Supabase → Organization Settings → Legal Documents | go-live | annehmen | Auftragsverarbeitung (`docs/privacy.md`) | — |
+| Sicherer Passwortwechsel | gehostetes Supabase → Authentication → Sign In / Providers → Email → „Secure password change“ | go-live | an | wie lokal | AC-21, AC-33 |
+| Vertrauenswürdiger IP-Header | Umgebungsvariablen beim Hoster: `TRUSTED_CLIENT_IP_HEADER` | go-live | der Header, den der gewählte Hoster selbst setzt und nicht vom Aufrufer übernimmt (vorher in dessen Doku prüfen). Ohne passenden Header leer lassen. | Grenzen pro IP wirken nur mit einer IP, die der Aufrufer nicht fälschen kann | AC-24, AC-26 |
+| **Deploy-Sperre: Schutz des direkten Wegs zu Supabase** | kein Schalter, sondern `/refine PROJ-1` vor dem ersten `/deploy` (CAPTCHA von Supabase unter Authentication → Attack Protection samt Widget in den Formularen, dazu die Frage nach der echten IP hinter dem Server) | go-live | erledigt, wenn der direkte Weg zu Supabase gegen Durchprobieren und Massen-Registrierung geschützt ist | Spec → Technische Anforderungen → Deploy-Sperre | AC-23–AC-26 |
 
-Für `/qa` blockiert nur die erste Zeile. Alle `go-live`-Zeilen sind Aufgaben für den ersten `/deploy`.
+Für `/qa` blockiert nur die erste Zeile. Alle `go-live`-Zeilen sind Aufgaben für den ersten `/deploy`, und `/deploy` liefert nicht aus, solange eine davon offen ist. Das gilt besonders für die Deploy-Sperre.
 
 ## Technische Entscheidungen
 
@@ -302,7 +359,14 @@ Für `/qa` blockiert nur die erste Zeile. Alle `go-live`-Zeilen sind Aufgaben f�
 | Aktuelles Passwort (Ändern, Löschen) per normaler Passwortprüfung durch die Bremse kontrollieren | Einheitlich gebremst (EC-11). Hängt nicht von einer Supabase-Einstellung für „aktuelles Passwort verlangen“ ab. | Parameter „aktuelles Passwort“ beim Speichern des neuen Passworts | Die Prüfung erneuert nebenbei die Anmeldung auf diesem Gerät. Das ist harmlos. | 2026-09-29 |
 | Formulare mit react-hook-form + Zod im Browser, abgeschickt per Server Action aus dem Submit-Handler | Sofortige Fehler am Feld, POST, Eingaben bleiben bei Fehlern stehen (EC-6). Dieselben Zod-Regeln prüft der Server. | Reines Formular-Action-Verfahren von React | Etwas mehr Code pro Formular | 2026-09-29 |
 | Mindestantwortzeit 500 ms für Login, Registrierung und Mail-Anforderungen | Ob eine Adresse existiert, lässt sich nicht an der Antwortzeit ablesen | Keine Angleichung | Jede dieser Aktionen dauert mindestens eine halbe Sekunde | 2026-09-29 |
-| IP-Adresse aus dem ersten Eintrag von `x-forwarded-for`, sonst `unknown` | Standard hinter einem Hoster, der den Header setzt | Eigene Proxy-Konfiguration | Lokal haben alle Anfragen dieselbe bzw. keine IP. Die Grenze pro IP wirkt lokal also für alle zusammen. Ohne vertrauenswürdigen Proxy davor ließe sich der Header fälschen, beim Hosting prüfen. | 2026-09-29 |
+| IP-Adresse nur aus dem Header, den `TRUSTED_CLIENT_IP_HEADER` nennt, sonst `untrusted`. **Ersetzt** am 2026-09-29 (nach QA, BUG-1) die frühere Entscheidung „erster Eintrag von `x-forwarded-for`, sonst `unknown`“. | Der erste Eintrag von `x-forwarded-for` kommt vom Aufrufer und ließ sich fälschen: Die Grenzen pro IP waren damit wirkungslos. Welcher Header vertrauenswürdig ist, hängt vom Hoster ab, deshalb ist er eine Einstellung. Next.js 16 gibt die IP der Verbindung selbst nicht heraus. | Weiter dem ersten Eintrag trauen und das erst beim Hosting prüfen | Ohne Einstellung (lokal) teilen sich alle Anfragen eine IP. 20 fremde Fehlversuche sperren dann alle für 15 Minuten, und 5 Registrierungen pro Stunde gelten für alle zusammen. Lokal mit einem Nutzer unerheblich, `/qa` setzt die Einstellung für die Prüfung. | 2026-09-29 |
+| Freigabe zum Festlegen als Vermerk in den App-Metadaten des Auth-Kontos, gebunden an die Anmeldungskennung, 15 Minuten gültig, nach Nutzung entfernt (AC-33, EC-13) | App-Metadaten kann nur der Server schreiben. Es braucht keine neue Tabelle und keinen Aufräumjob, und mit dem Konto verschwindet der Vermerk automatisch. Die Bindung an die Anmeldung verhindert, dass ein anderes Gerät die Freigabe nutzt. | (a) Anmeldeart aus der Anmeldung selbst ablesen (Supabase vermerkt „per Mail-Code angemeldet“ mit Zeitpunkt). (b) Eigene Tabelle. (c) Signiertes Cookie mit eigenem Geheimschlüssel. | Ein Schreibzugriff mit dem Server-Schlüssel beim Öffnen des Links. (a) wurde verworfen, weil der Link zur E-Mail-Bestätigung dieselbe Anmeldeart erzeugt und sich damit nicht vom Link zum Zurücksetzen unterscheiden ließe. | 2026-09-29 |
+| „Sicherer Passwortwechsel“ von Supabase an (neue Passwörter nur mit einer Anmeldung, die jünger als 24 h ist) | Schränkt auch den direkten Weg zu Supabase ein, ohne unsere eigenen Wege zu stören | Supabase-Einstellung „aktuelles Passwort verlangen“ | Schließt den direkten Weg nicht ganz (Anmeldungen jünger als 24 h). Die Einstellung „aktuelles Passwort verlangen“ lässt sich in der lokalen Konfiguration nicht setzen und bleibt Teil der Deploy-Sperre. | 2026-09-29 |
+| Mail-Freigabe als eine Datenbankfunktion mit Sperre pro Adresse; eine zweite Mail innerhalb von 10 s wird als `duplicate` verworfen (EC-5, AC-25) | Garantie hinter EC-5: Gleichzeitige Anforderungen kommen nacheinander dran, genau eine bekommt „senden“. Zählen und Eintragen passieren im selben Schritt. Der 10-Sekunden-Abstand von Supabase griff bei gleichzeitigen Anfragen nicht (QA, BUG-4). | Weiter „erst eintragen, dann zählen“ im App-Code | Eine Datenbankfunktion mehr. Wer innerhalb von 10 s absichtlich eine zweite Mail will, bekommt keine, sieht aber „Mail gesendet“, und die erste kommt an. | 2026-09-29 |
+| Bei jedem Fehler beim Anlegen eines Kontos den Kontostatus erneut abfragen (QA, BUG-6) | Zwei gleichzeitige Registrierungen derselben Adresse zeigen beide „Prüfe dein Postfach“, egal welchen Fehler Supabase dem Verlierer meldet | Nur den Fehlercode „schon registriert“ abfangen | Eine Datenbankabfrage mehr, nur im Fehlerfall | 2026-09-29 |
+| Neue Passwörter höchstens 72 Bytes statt 72 Zeichen (AC-34) | Das ist die tatsächliche Grenze des Passwort-Hashes. Bei Umlauten und Emojis lehnte Supabase sonst ab, und der Nutzer sah „Keine Verbindung“. | Weiter Zeichen zählen und die Supabase-Ablehnung übersetzen | Die Meldung muss erklären, dass Umlaute mehrfach zählen | 2026-09-29 |
+| Wartezeit der Sperre nur aus echten Fehlversuchen berechnen, höchstens 15 Minuten; eine Sperre nur durch gleichzeitige Prüfungen meldet 1 Minute (QA, BUG-5) | Die Meldung soll stimmen. Der Schutz selbst bleibt unverändert. | Wartezeit aus allen gezählten Einträgen | keiner | 2026-09-29 |
+| Deutsche Seite für unbekannte Adressen und eine allgemeine deutsche Meldung für kaputte Anfragen (QA, BUG-8) | Technische Anforderung „alle Texte auf Deutsch“ | — | keiner | 2026-09-29 |
 | Protokoll-Einträge der Registrierung ohne E-Mail-Adresse | Für die Grenze pro IP wird die Adresse nicht gebraucht (Datensparsamkeit) | E-Mail mit speichern | keiner | 2026-09-29 |
 | Design-System, Schriften und Sicherheits-Header kommen mit PROJ-1 | Erstes Feature mit Oberfläche. Die Header sind laut Sicherheitsregeln für jedes Web-Projekt Pflicht. | Später mit PROJ-2 | PROJ-1 wird etwas größer | 2026-09-29 |
 
