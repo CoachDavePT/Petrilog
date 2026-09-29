@@ -26,7 +26,7 @@
 | ID | Feature | Description | Status | Spec | Created |
 |----|---------|-------------|--------|------|---------|
 | PROJ-1 | Registrierung & Login | Registrierung, Login und Logout mit E-Mail und Passwort, Umleitung nicht angemeldeter Nutzer, schlanke Konto-Seite und das Row-Level-Security-Muster (jeder sieht nur seine eigenen Daten). | Approved | [PROJ-1-user-auth](PROJ-1-user-auth/) | 2026-09-29 |
-| PROJ-2 | Sessions & Fänge | Sessions live oder nachträglich erfassen, Fänge mit GPS-Position eintragen, bearbeiten und löschen, dazu Übersicht, Detailansicht und der App-Rahmen (Kopfzeile, Tab-Leiste, Leiste der aktiven Session). | Tasked | [PROJ-2-sessions-catches](PROJ-2-sessions-catches/) | 2026-09-29 |
+| PROJ-2 | Sessions & Fänge | Sessions live oder nachträglich erfassen, Fänge mit GPS-Position eintragen, bearbeiten und löschen, dazu Übersicht, Detailansicht und der App-Rahmen (Kopfzeile, Tab-Leiste, Leiste der aktiven Session). | In Progress | [PROJ-2-sessions-catches](PROJ-2-sessions-catches/) | 2026-09-29 |
 | PROJ-3 | Automatische Wetterdaten | Ruft Wetterdaten von Open-Meteo zu Position und Uhrzeit jeder Session und jedes Fangs ab (auch rückwirkend), kennzeichnet Einträge ohne Wetterdaten und zeigt sie in den Detailansichten. | Roadmap | — | 2026-09-29 |
 
 **Build order:** P0 (MVP): PROJ-1 → PROJ-2 (braucht PROJ-1) → PROJ-3 (braucht PROJ-2)
