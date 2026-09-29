@@ -107,6 +107,7 @@
 - [ ] Mail-Dienst für den gehosteten Betrieb wählen (Auftragsverarbeiter, AVV), siehe `docs/privacy.md`
 - [ ] Verantwortlichen für die Datenschutzerklärung festlegen, siehe `docs/privacy.md`
 - [ ] Mindestalter bzw. Zustimmung der Eltern für jugendliche Angler: Frage an eine Anwältin, siehe `docs/privacy.md`
+- [ ] Vor dem ersten Hosting: Supabase sieht bei Anmeldungen über den Server dessen IP-Adresse statt der des Nutzers, und wer die Supabase-Schnittstelle direkt aufruft, umgeht die Bremse der App. Beides klären, zusammen mit dem CAPTCHA (siehe `design.md` → Offene Fragen)
 
 ## Entscheidungsprotokoll
 

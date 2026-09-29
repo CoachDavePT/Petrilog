@@ -36,7 +36,8 @@ Owner: PROJ-2 (Sessions & Fänge). Die Sessions-Übersicht trägt Kopfzeile, Tab
 
 ## Anmeldezustand
 
-- **Abgemeldet:** Nur Login und Registrierung, ohne Tab-Leiste, auf dunklem Wald-Hintergrund mit dem Schriftzug „Petrilog“. Jede andere Adresse leitet zum Login um.
+- **Abgemeldet:** Nur Login, Registrierung und „Passwort vergessen“, ohne Tab-Leiste, auf dunklem Wald-Hintergrund mit dem Schriftzug „Petrilog“. Ohne Anmeldung erreichbar sind außerdem die Datenschutzerklärung sowie die Ziele der Mail-Links (Bestätigung, abgelaufener Link). Diese Seiten sind hell, ohne Rahmen und mit kompakter Kopfzeile. Jede andere Adresse leitet zum Login um (PROJ-1).
+- **Seiten ohne Rahmen für Angemeldete:** „Neues Passwort festlegen“ (Ziel des Links zum Zurücksetzen) hat keine Tab-Leiste, nur eine kompakte Kopfzeile (PROJ-1).
 - **Angemeldet:** Alle drei Tabs. Wer angemeldet die Login-Seite aufruft, landet in der Sessions-Übersicht.
 - **Rollen:** In dieser Version keine.
 
@@ -49,7 +50,9 @@ Wo die Dateien liegen, legt `/architecture` für PROJ-2 fest. Kein Feature baut 
 | AppBar | _festgelegt in PROJ-2 `design.md`_ | Kopfzeile, groß (Hauptseiten) und kompakt (Unterseiten) |
 | TabBar | _festgelegt in PROJ-2 `design.md`_ | Navigation Sessions · Start · Konto |
 | ActiveSessionBar | _festgelegt in PROJ-2 `design.md`_ | Schwebende Leiste der laufenden Session mit „Fang eintragen“ |
-| Layout der angemeldeten App | _festgelegt in PROJ-2 `design.md`_ | Umschließt alle angemeldeten Seiten, prüft die Anmeldung |
+| Layout der angemeldeten App | `src/app/(app)/layout.tsx`: angelegt von PROJ-1 mit der Anmeldeprüfung; PROJ-2 ergänzt Kopfzeile, Tab-Leiste und die Leiste der aktiven Session | Umschließt alle angemeldeten Seiten, prüft die Anmeldung |
+| Layout für Abgemeldete | `src/app/(auth)/layout.tsx` (PROJ-1) | Wald-Hintergrund mit Schriftzug für Login, Registrierung und „Passwort vergessen“ |
+| Anmeldegrenze | `src/proxy.ts` (PROJ-1) | Erneuert die Anmeldung, leitet Abgemeldete zum Login und Angemeldete von den Login-Seiten weg |
 
 ---
 
