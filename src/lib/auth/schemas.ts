@@ -55,3 +55,8 @@ export function fieldErrors(error: z.ZodError): FieldErrors {
   }
   return out
 }
+
+/** What every auth Server Action returns to its form (redirects are thrown, not returned). */
+export type ActionState =
+  | { status: 'success'; message?: string }
+  | { status: 'error'; message?: string; fieldErrors?: FieldErrors; unconfirmed?: boolean }
