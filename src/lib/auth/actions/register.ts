@@ -11,7 +11,7 @@ import { logAuthError } from '../log'
 import { MESSAGES } from '../messages'
 import { atLeast } from '../min-duration'
 import { fieldErrors, registerSchema, type ActionState, type RegisterInput } from '../schemas'
-import { allowMailRequest, allowSignup, supabaseThrottleStore } from '../throttle'
+import { allowSignup, claimMailRequest, supabaseThrottleStore } from '../throttle'
 
 export async function register(input: RegisterInput): Promise<ActionState> {
   const parsed = registerSchema.safeParse(input)
@@ -25,14 +25,18 @@ export async function register(input: RegisterInput): Promise<ActionState> {
       const store = supabaseThrottleStore(admin)
 
       if (!(await allowSignup(store, { ip }))) return { status: 'error', message: MESSAGES.tooManySignups }
-      if (!(await allowMailRequest(store, { email, ip }))) return { status: 'error', message: MESSAGES.mailWait }
+      const mail = await claimMailRequest(store, { email, ip })
+      if (mail === 'limit') return { status: 'error', message: MESSAGES.mailWait }
+      // A double tap: the first request is already creating the account and sending the mail (EC-5).
+      if (mail === 'duplicate') return { status: 'success' }
 
       const state = await accountState(admin, email)
       if (state === 'none') {
         const supabase = await createClient()
         const { error } = await supabase.auth.signUp({ email, password })
-        // A parallel signup for the same address won the race: same answer as for any existing one.
-        if (error && error.code !== 'user_already_exists' && error.status !== 429) throw error
+        // Whatever Supabase says, a parallel signup may have won the race (BUG-6): if the account
+        // exists now, same answer as for any existing one. Only without an account is it an error.
+        if (error && (await accountState(admin, email)) === 'none') throw error
       } else if (state === 'unconfirmed') {
         await resendConfirmationIfUnconfirmed(admin, email)
       }

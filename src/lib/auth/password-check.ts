@@ -2,14 +2,17 @@
 // check goes through the login brake, so failures in any of the three count toward the same lock
 // (AC-23, AC-24, EC-11). A successful check signs the user in on this device (session cookies).
 import 'server-only'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { clientIp } from './client-ip'
+import { PASSWORD_MAX_BYTES, utf8Length } from './schemas'
 import { beginLoginAttempt, finishLoginAttempt, supabaseThrottleStore } from './throttle'
 
 export type PasswordCheck =
-  | { result: 'ok' }
+  /** `supabase` holds the session this check just created — save a new password with it (secure_password_change). */
+  | { result: 'ok'; supabase: SupabaseClient }
   | { result: 'wrong' }
   | { result: 'unconfirmed' }
   | { result: 'locked'; minutes: number }
@@ -22,6 +25,12 @@ export async function checkPassword(email: string, password: string): Promise<Pa
   const attempt = await beginLoginAttempt(store, { email, ip })
   if (!attempt.ok) return { result: 'locked', minutes: attempt.retryMinutes }
 
+  // No stored password can be longer than 72 bytes: wrong without asking Supabase, but it counts.
+  if (utf8Length(password) > PASSWORD_MAX_BYTES) {
+    await finishLoginAttempt(store, attempt.attemptId, 'failed')
+    return { result: 'wrong' }
+  }
+
   const supabase = await createClient()
   let error
   try {
@@ -33,7 +42,7 @@ export async function checkPassword(email: string, password: string): Promise<Pa
 
   if (!error) {
     await finishLoginAttempt(store, attempt.attemptId, 'succeeded')
-    return { result: 'ok' }
+    return { result: 'ok', supabase }
   }
   // Supabase reports "not confirmed" only after a correct password — it reveals nothing (AC-9).
   if (error.code === 'email_not_confirmed') {

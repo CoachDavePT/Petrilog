@@ -12,7 +12,7 @@ import { logAuthError } from '../log'
 import { MESSAGES } from '../messages'
 import { atLeast } from '../min-duration'
 import { emailOnlySchema, fieldErrors, type ActionState, type EmailOnlyInput } from '../schemas'
-import { allowMailRequest, supabaseThrottleStore } from '../throttle'
+import { claimMailRequest, supabaseThrottleStore } from '../throttle'
 
 type MailKind = 'confirmation' | 'recovery'
 
@@ -25,9 +25,10 @@ async function requestMail(input: EmailOnlyInput, kind: MailKind, sentMessage: s
     try {
       const ip = clientIp(await headers())
       const admin = createAdminClient()
-      if (!(await allowMailRequest(supabaseThrottleStore(admin), { email, ip }))) {
-        return { status: 'error', message: MESSAGES.mailWait }
-      }
+      const mail = await claimMailRequest(supabaseThrottleStore(admin), { email, ip })
+      if (mail === 'limit') return { status: 'error', message: MESSAGES.mailWait }
+      // A double tap: the first request's mail is on its way — same answer, no second mail (EC-5).
+      if (mail === 'duplicate') return { status: 'success', message: sentMessage }
       if (kind === 'confirmation') {
         await resendConfirmationIfUnconfirmed(admin, email)
       } else {
