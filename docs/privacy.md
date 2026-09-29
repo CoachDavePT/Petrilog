@@ -1,72 +1,62 @@
-# Privacy Record — what this product does with personal data
+# Datenschutz-Nachweis: Was Petrilog mit personenbezogenen Daten macht
 
-> The honest overview of which personal data this product processes, why, and for how long.
+> Der ehrliche Überblick, welche personenbezogenen Daten Petrilog verarbeitet, wozu und wie lange.
 >
-> - Created and kept current by `/dsgvo`, one entry per processing purpose.
-> - Grows with the product: when a feature changes what is stored, its entry changes too.
-> - **Altitude:** purposes, legal bases, retention, and who else sees the data. Field-level detail lives in `docs/data-model.md` and the feature designs.
+> - Angelegt und aktuell gehalten von `/dsgvo`, ein Eintrag pro Verarbeitungszweck.
+> - Wächst mit dem Produkt: Ändert ein Feature, was gespeichert wird, ändert sich auch sein Eintrag.
+> - **Flughöhe:** Zwecke, Rechtsgrundlagen, Speicherdauer und wer die Daten sonst sieht. Details auf Feldebene stehen in `docs/data-model.md` und in den `design.md` der Features.
 >
-> This maps closely onto the record of processing activities (*Verarbeitungsverzeichnis*, Art. 30 GDPR; Art. 12 Swiss DSG) — but it is an engineering document, not a legal filing. A lawyer or your data protection officer / advisor has the final word on whether it is complete for your situation.
+> Das entspricht weitgehend dem Verzeichnis von Verarbeitungstätigkeiten (Art. 30 DSGVO; Art. 12 DSG), ist aber ein technisches Dokument und keine rechtliche Einreichung. Ob es für deinen Fall vollständig ist, entscheidet eine Anwältin oder ein Datenschutzbeauftragter.
 
-**Applicable law:** _GDPR (EU/DE) · DSG (CH) · both — from `.ai-eng-kit` → `law`; the rules are in `docs/law/`_
-**Data protection stance:** _lean | standard | strict — set in `docs/PRD.md` → Constraints_
-**Controller (Verantwortlicher):** _your company / your name and address — the legal entity behind the product_
-**Last reviewed:** _YYYY-MM-DD_
+**Anwendbares Recht:** DSGVO (EU/DE) und DSG (CH). Bei jeder Pflicht gilt die strengere Form (`.ai-eng-kit` → `law`, Regeln in `docs/law/`).
+**Datenschutz-Haltung:** standard (`docs/PRD.md` → Rahmenbedingungen)
+**Verantwortlicher:** _noch nicht festgelegt (siehe Offene Punkte)_
+**Zuletzt geprüft:** 2026-09-29 (PROJ-1)
 
 ---
 
-## Processing activities
+## Verarbeitungstätigkeiten
 
-_One row per purpose, not per table. "Run user accounts" is a purpose; "the profiles table" is not._
+| Zweck | Daten | Wessen | Warum rechtmäßig | Speicherdauer | Beteiligte Auftragsverarbeiter |
+|-------|-------|--------|------------------|---------------|--------------------------------|
+| Nutzerkonten betreiben (Registrierung, Login, Passwort zurücksetzen, Konto-Seite) — PROJ-1 | E-Mail-Adresse, Passwort (nur als Hash), Zeitpunkte von Anlage, Bestätigung und letzter Anmeldung, Anmelde-Tokens im Cookie, Profil (ID, Anlagedatum) | Registrierte Nutzer | DSGVO: Art. 6 Abs. 1 lit. b (Vertrag, ohne Konto kein Fangbuch) · DSG: erwartbarer Zweck, keine Rechtfertigung nötig | Bis zur Löschung des Kontos. Unbestätigte Konten werden nach 7 Tagen gelöscht. | Lokal: keiner. Gehostet: Supabase (EU), ein Mail-Dienst (noch offen) |
+| Login und Mailversand vor Missbrauch schützen — PROJ-1 | E-Mail-Adresse und IP-Adresse fehlgeschlagener Versuche und angeforderter Mails, mit Zeitpunkt | Nutzer und Besucher, die Formulare abschicken | DSGVO: Art. 6 Abs. 1 lit. f (berechtigtes Interesse an der Sicherheit der Konten) · DSG: erwartbarer Zweck, keine Rechtfertigung nötig | Höchstens 24 Stunden | Lokal: keiner. Gehostet: Supabase (EU) |
+| Bestätigungs- und Passwort-Mails verschicken — PROJ-1 | E-Mail-Adresse, Inhalt der Mail (Link) | Registrierte Nutzer | DSGVO: Art. 6 Abs. 1 lit. b · DSG: erwartbarer Zweck | Beim Mail-Dienst nach dessen Log-Aufbewahrung (noch offen) | Lokal: Mailpit (Test-Postfach, verlässt den Rechner nicht). Gehostet: Mail-Dienst (noch offen) |
 
-| Purpose | Data | Whose | Why it is lawful | Retention | Processors involved |
-|---------|------|-------|------------------|-----------|---------------------|
-| _Run user accounts_ | _Email, password hash, display name_ | _Registered users_ | _GDPR: Art. 6(1)(b) contract · DSG: expected purpose, no justification needed_ | _Until account deletion_ | _Supabase (EU)_ |
-| _..._ | _..._ | _..._ | _..._ | _..._ | _..._ |
+## Besonders schützenswerte Daten
 
-## Sensitive data
+- Keine in PROJ-1. (GPS-Positionen aus PROJ-2 sind Standortdaten, aber keine besondere Kategorie nach Art. 9 DSGVO / Art. 5 lit. c DSG. Sie werden bei `/dsgvo PROJ-2` bewertet.)
 
-_Health, biometrics, genetics, ethnicity, political opinion, religion, trade union membership, sex life or orientation, criminal matters — and, under the Swiss DSG, social-assistance measures and administrative proceedings (Art. 9 GDPR · Art. 5 lit. c DSG). These carry much stricter rules — usually explicit consent. List them separately so nobody overlooks them, or write "none"._
+## Auftragsverarbeiter (Auftragsverarbeiter · Auftragsbearbeiter)
 
-- _none_
+Solange die App nur lokal läuft, verarbeitet kein externer Dienst personenbezogene Daten. Die Zeilen unten gelten ab dem ersten gehosteten Betrieb.
 
-## Processors (Auftragsverarbeiter · Auftragsbearbeiter)
+| Dienst | Was er verarbeitet | Region | AVV / DPA unterschrieben | Außerhalb der angemessenen Staaten? |
+|--------|--------------------|--------|--------------------------|-------------------------------------|
+| Supabase | Alle Anwendungsdaten, Konten, Auth-Logs | eu-central-1 (Frankfurt), festgelegt in der PRD | ☐ (vor dem Deploy) | US-Unternehmen, Hosting in der EU. Das EU-US bzw. Swiss-US Data Privacy Framework ist zu prüfen. |
+| Mail-Dienst (SMTP) für Bestätigungs- und Passwort-Mails | E-Mail-Adresse, Mail-Inhalt | _nicht festgelegt_ | ☐ | _nicht festgelegt_ |
 
-_Every external service that touches personal data on your behalf (Art. 28 GDPR · Art. 9 DSG). Each needs a data processing agreement (AVV / DPA) — normally a checkbox or a downloadable document in the provider's dashboard. Under the DSG the countries you export to also have to be named in the privacy policy._
+## Rechte der betroffenen Personen
 
-| Service | What it processes | Region | DPA signed | Outside the adequate countries? |
-|---------|-------------------|--------|------------------|----------------|
-| _Supabase_ | _All application data_ | _eu-central-1 (Frankfurt)_ | _☐_ | _US company, EU hosting_ |
-| _Vercel_ | _Requests, logs_ | _..._ | _☐_ | _..._ |
-| _Sentry_ | _Error reports (scrubbed)_ | _..._ | _☐_ | _..._ |
+Frist: **30 Tage** (DSG Art. 25 Abs. 7). Das ist die strengere der beiden Fristen, die DSGVO gibt einen Kalendermonat (Art. 12 Abs. 3).
 
-## Data subject rights — how they are served
+| Recht | DSGVO | DSG | Wie Petrilog es erfüllt |
+|-------|-------|-----|-------------------------|
+| Auskunft / Kopie | Art. 15 | Art. 25 | Konto-Seite → „Meine Daten exportieren“ (PROJ-1; spätere Features ergänzen ihre Daten im Export) |
+| Berichtigung | Art. 16 | Art. 32 | Fang- und Session-Daten direkt in der App (PROJ-2). Eine Änderung der E-Mail-Adresse ist im MVP nicht eingebaut: auf Anfrage manuell. |
+| Löschung | Art. 17 | Art. 32 Abs. 2 / Art. 6 Abs. 4 | Konto-Seite → „Konto löschen“ löscht Konto, Profil und alle zugehörigen Daten sofort (PROJ-1) |
+| Datenübertragbarkeit | Art. 20 | Art. 28 | Export als maschinenlesbare JSON-Datei (PROJ-1) |
+| Widerspruch | Art. 21 | Art. 30 Abs. 2 | Betrifft nur den Missbrauchsschutz (berechtigtes Interesse). Die Daten verfallen nach 24 Stunden, ein Widerspruch wird auf Anfrage manuell bearbeitet. |
 
-_Which part of the app actually delivers each right. "By email, manually" is a valid answer for a small product; leaving it blank is not._
+## Offene Punkte
 
-| Right | GDPR | DSG | How this product delivers it |
-|-------|------|-----|------------------------------|
-| Access / copy | Art. 15 | Art. 25 | _..._ |
-| Rectification | Art. 16 | Art. 32 | _..._ |
-| Erasure | Art. 17 | Art. 32 / Art. 6 Abs. 4 | _..._ |
-| Portability | Art. 20 | Art. 28 (narrower) | _..._ |
-| Objection | Art. 21 | Art. 30 Abs. 2 | _..._ |
+- [ ] Verantwortlichen festlegen (Name bzw. Firma und Anschrift) — Pflichtangabe der Datenschutzerklärung
+- [ ] Mail-Dienst für den gehosteten Betrieb wählen, AVV abschließen, hier eintragen (vor `/deploy`)
+- [ ] AVV mit Supabase im Dashboard abschließen (vor `/deploy`)
+- [ ] Text der Datenschutzerklärung von einer Anwältin oder aus einem seriösen Generator. Bis dahin enthält die Seite einen Platzhalter auf Basis dieses Dokuments (vor dem ersten gehosteten Betrieb).
+- [ ] Impressum (DDG) bzw. Anbieterangaben (UWG CH) vor dem ersten gehosteten Betrieb
 
-> Deadline: **one calendar month** under the GDPR (Art. 12(3), extendable by two for complex cases if the person is told within the first), **30 days** under the DSG (Art. 25 Abs. 7).
+## Für eine Anwältin / einen Datenschutzbeauftragten
 
-## Open points
-
-_What is still unresolved, and who resolves it. `/dsgvo` adds items here; they leave when they are actually done._
-
-- [ ] _e.g. AVV with Sentry not yet signed_
-- [ ] _e.g. Retention period for uploaded files never decided_
-
-## For a lawyer / data protection officer or advisor
-
-_Questions that need a human. Keep the context with each question so it can be asked without re-explaining the product._
-
-- _e.g. Our free tier keeps analytics data for 24 months on legitimate interest — is that defensible for a B2C product with no login requirement?_
-
----
-
-_Run `/dsgvo` to create the first version of this record, and again whenever a feature changes what personal data the product holds._
+- **Mindestalter:** Angeln ist in Deutschland teils schon ab 10 Jahren erlaubt (Jugendfischereischein), Petrilog wird also auch Jugendliche anziehen. Das Konto beruht auf Vertrag (Art. 6 Abs. 1 lit. b DSGVO), nicht auf Einwilligung, Art. 8 DSGVO greift also nicht direkt. Frage: Brauchen wir ein Mindestalter oder eine Zustimmung der Eltern, und wie gehen wir in der Schweiz mit der Urteilsfähigkeit (Art. 16 ZGB) um?
+- **Missbrauchsschutz auf Basis des berechtigten Interesses:** Wir speichern E-Mail- und IP-Adressen fehlgeschlagener Login-Versuche und angeforderter Mails höchstens 24 Stunden lang, um Passwort-Raten und Mail-Spam zu bremsen. Ist diese Frist vertretbar, und muss die Datenschutzerklärung das gesondert nennen?

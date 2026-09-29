@@ -25,7 +25,7 @@
   },
   "probe": {
     "kind": "http",
-    "baseUrl": "http://localhost:3000"
+    "baseUrl": "http://localhost:3553"
   },
   "layers": [],
   "law": [

@@ -4,9 +4,9 @@
   "description": "Built with the AI Engineering Kit — a spec-driven Claude Code workflow on Next.js + Supabase",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3553",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3553",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -47,6 +47,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.71.1",
+    "server-only": "^0.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.3.5"
