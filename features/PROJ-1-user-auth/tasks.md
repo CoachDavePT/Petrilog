@@ -18,7 +18,7 @@
 - [x] T5 [P]  Design-System anwenden: Tokens hell und dunkel in globals.css laut `docs/design-system.md`, Schriften Zilla Slab, Barlow und IBM Plex Mono über next/font, `lang="de"`, App-Titel und -Beschreibung, Toaster (sonner) für Erfolgs-Notices im Grundlayout  · files: src/app/globals.css, src/app/layout.tsx  · → AC-1, AC-7, AC-19
 - [x] T6 [P]  Sicherheits-Header in der Next.js-Konfiguration (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Strict-Transport-Security)  · files: next.config.ts  · → AC-3, AC-13, AC-17
 - [x] T7 [P]  Supabase-Zugang mit Server-Schlüssel, nur auf dem Server nutzbar (Paket `server-only`), Platzhalter `SUPABASE_SERVICE_ROLE_KEY` in der Beispiel-Env-Datei  · files: src/lib/supabase/admin.ts, .env.local.example, package.json, package-lock.json  · → AC-23, AC-24, AC-25, AC-26, AC-28
-- [ ] T8 [user]  Server-Schlüssel der lokalen Supabase eintragen  · where: `.env.local` → neue Zeile `SUPABASE_SERVICE_ROLE_KEY=<Secret key bzw. service_role key aus „supabase status“>`, ohne `NEXT_PUBLIC_`  · → AC-23, AC-24, AC-25, AC-26, AC-28
+- [x] T8 [user]  Server-Schlüssel der lokalen Supabase eintragen  · where: `.env.local` → neue Zeile `SUPABASE_SERVICE_ROLE_KEY=<Secret key bzw. service_role key aus „supabase status“>`, ohne `NEXT_PUBLIC_`  · → AC-23, AC-24, AC-25, AC-26, AC-28
 
 ## Ebene 2: Kernbausteine
 
@@ -55,11 +55,44 @@
 - [ ] T30 [user go-live]  Supabase-eigene Grenzen passend zum Mail-Dienst  · where: Supabase → Authentication → Rate Limits  · → AC-23, AC-24, AC-25, AC-26
 - [ ] T31 [user go-live]  AVV mit Supabase annehmen  · where: Supabase → Organization Settings → Legal Documents  · → AC-28
 
+## Runde 2: nach QA (2026-09-29)
+
+> Nach `/qa`, `/refine PROJ-1` und `/architecture PROJ-1`. Hier stehen nur die Änderungen: neue Kriterien AC-33, AC-34 und EC-13, geschärfte AC-24 und AC-26 sowie die Fixes für BUG-1 und BUG-3 bis BUG-8 aus `qa-report.md`. Ebene 5 (go-live) blockiert Runde 2 nicht. `/build` beginnt mit Ebene 6.
+
+### Ebene 6: Datenbank und Grundlagen
+
+- [ ] T32 [P]  Neue Migration: Ergebnis `duplicate` im Check von `auth_throttle_events.outcome` erlauben; Funktion `claim_mail_request(p_email, p_ip)` in einem Schritt unter einer Sperre pro Adresse: zugelassener Eintrag jünger als 10 s → Eintrag `duplicate`, Antwort `duplicate`; sonst ≥ 3 zugelassene in 60 min → Eintrag `blocked`, Antwort `limit`; sonst Eintrag `allowed`, Antwort `send`. Ausführbar nur mit dem Server-Schlüssel, `search_path` leer. Die vorhandenen Migrationen bleiben unverändert  · files: supabase/migrations/20260929130000_mail_release.sql  · → AC-25, EC-5
+- [ ] T33 [P]  Lokale Supabase: `secure_password_change = true`  · files: supabase/config.toml  · → AC-21, AC-33
+- [ ] T34 [P]  Eingaberegeln und Meldungen: neues Passwort 8 Zeichen bis 72 Bytes (UTF-8) mit der Meldung aus AC-34; bestehendes Passwort ohne Obergrenze im Schema (die Bremse übernimmt das, T41); Meldung aus EC-13 und erlaubter Konto-Code `reset-expired`; kaputte Anfragen (kein Objekt, falscher Typ) → „Bitte prüfe deine Eingaben.“ statt englischer Zod-Texte. Unit-Tests ergänzen  · files: src/lib/auth/schemas.ts, src/lib/auth/schemas.test.ts, src/lib/auth/messages.ts, src/lib/auth/messages.test.ts  · → AC-5, AC-34, EC-13
+- [ ] T35 [P]  IP-Ermittlung nur aus dem Header, den `TRUSTED_CLIENT_IP_HEADER` nennt (bei `x-forwarded-for` der letzte Eintrag), sonst `untrusted`; Platzhalter `TRUSTED_CLIENT_IP_HEADER=` (leer) mit Erklärung in der Beispiel-Env-Datei. Unit-Tests: gefälschter Header ohne Einstellung wird ignoriert  · files: src/lib/auth/client-ip.ts, src/lib/auth/client-ip.test.ts, .env.local.example  · → AC-24, AC-26
+- [ ] T36 [P]  Bremse: Wartezeit nur aus dem jüngsten `failed` (ohne den eigenen Eintrag, Zukunft zählt als „jetzt“), 1 bis 15 Minuten, Sperre nur durch gleichzeitige Prüfungen → 1 Minute; Mail-Grenze ruft `claim_mail_request` auf und liefert `send`, `duplicate` oder `limit` statt ja/nein. Unit-Tests ergänzen  · files: src/lib/auth/throttle.ts, src/lib/auth/throttle.test.ts  · → AC-23, AC-25, EC-5
+- [ ] T37 [P]  Freigabe zum Festlegen als eigener Baustein: anlegen (App-Metadaten `password_reset` mit `session_id` der aktuellen Anmeldung und `expires_at` = jetzt + 15 min, über den Server-Schlüssel), prüfen (Ergebnis `valid`, `expired` oder `none`; die Anmeldungskennung aus der geprüften Anmeldung, nie aus Browser-Eingaben), entfernen. Unit-Tests  · files: src/lib/auth/reset-grant.ts, src/lib/auth/reset-grant.test.ts  · → AC-33, EC-13
+
+### Ebene 7: Server-Aktionen und Endpunkte
+
+- [ ] T38 [P]  Registrierung und Mail-Aktionen auf die neue Mail-Grenze umstellen: `duplicate` → dieselbe Erfolgsmeldung ohne Mail, `limit` → Wartemeldung; bei **jedem** Fehler von Supabase beim Anlegen den Kontostatus erneut abfragen, gibt es das Konto jetzt → „Prüfe dein Postfach“  · files: src/lib/auth/actions/register.ts, src/lib/auth/actions/mail.ts  · → AC-1, AC-6, AC-25, EC-5
+- [ ] T39 [P]  „Neues Passwort festlegen“ prüft beim Abschicken die Freigabe (`valid` → speichern, Freigabe entfernen, andere Geräte abmelden, `/?notice=password-changed`; `expired` → Freigabe entfernen, `/account?notice=reset-expired`; `none` → `/account`); gleiches Passwort lässt die Freigabe bestehen. „Passwort ändern“ speichert mit der Anmeldung aus der gerade erfolgten Passwortprüfung und funktioniert nachweislich auch mit einer Anmeldung älter als 24 h  · files: src/lib/auth/actions/account.ts  · → AC-17, AC-20, AC-33, EC-13
+- [ ] T40 [P]  `/auth/confirm`: nach einem gültigen Link zum Zurücksetzen (innerhalb 1 h) die Freigabe anlegen, dann `/reset-password`; schlägt das Anlegen fehl → abmelden und `/auth/link-expired?type=recovery`. Unit-Tests ergänzen  · files: src/app/auth/confirm/route.ts, src/app/auth/confirm/route.test.ts  · → AC-17, AC-33
+- [ ] T41 [P]  Passwortprüfung: ein bestehendes Passwort über 72 Bytes geht durch die Bremse und wird ohne Anfrage an Supabase als `failed` gewertet („E-Mail oder Passwort ist falsch.“ bzw. „Das aktuelle Passwort ist falsch.“)  · files: src/lib/auth/password-check.ts  · → AC-8, AC-21, AC-23
+
+### Ebene 8: Seiten
+
+- [ ] T42 [P]  Seite `/reset-password` prüft beim Öffnen die Freigabe: `valid` → Formular, `expired` → Freigabe entfernen und `/account?notice=reset-expired`, `none` → `/account`; nicht angemeldet → `/login` wie bisher  · files: src/app/reset-password/page.tsx  · → AC-33, EC-13
+- [ ] T43 [P]  Konto-Seite zeigt den Hinweis aus `?notice=reset-expired` als Warn-Notice oben, unbekannte Codes werden ignoriert  · files: src/app/(app)/account/page.tsx  · → EC-13
+- [ ] T44 [P]  Deutsche Seite für unbekannte Adressen: „Diese Seite gibt es nicht.“ mit Link „Zur Startseite“, hell, ohne Rahmen  · files: src/app/not-found.tsx  · → Technische Anforderung „Sprache“ (kein eigenes AC)
+
+### Ebene 9: Beim ersten Deploy
+
+- [ ] T45 [user go-live]  Sicherer Passwortwechsel im gehosteten Supabase  · where: Supabase → Authentication → Sign In / Providers → Email → „Secure password change“ = an  · → AC-21, AC-33
+- [ ] T46 [user go-live]  Vertrauenswürdigen IP-Header setzen  · where: Hoster → Umgebungsvariablen → `TRUSTED_CLIENT_IP_HEADER` = der Header, den der Hoster selbst setzt und nicht vom Aufrufer übernimmt (vorher in dessen Doku prüfen); ohne passenden Header leer lassen  · → AC-24, AC-26
+- [ ] T47 [user go-live]  **Deploy-Sperre:** direkten Weg zu Supabase schützen  · where: `/refine PROJ-1` vor dem ersten `/deploy` (CAPTCHA unter Supabase → Authentication → Attack Protection samt Widget in den Formularen, echte IP hinter dem Server klären); erledigt erst, wenn der direkte Weg gegen Durchprobieren und Massen-Registrierung geschützt ist  · → AC-23, AC-24, AC-25, AC-26
+
 ## Parallelisierung
 
 - **Ebenen sind Schranken.** Eine Ebene startet erst, wenn die vorige vollständig zusammengeführt und gegen ihre AC-IDs geprüft ist: Datenbank (E1) → Kernbausteine (E2) → Server-Aktionen (E3) → Seiten (E4).
 - **`[P]` verlangt getrennte Dateien.** Keine zwei `[P]`-Aufgaben einer Ebene nennen denselben Pfad unter `files:`. Geprüft: Alle Ebenen sind dateidisjunkt.
 - **T8 muss erledigt sein, bevor Ebene 3 gegen die echte lokale Datenbank geprüft wird.** Die Unit-Tests aus Ebene 2 laufen auch ohne ihn.
 - **Nach Ebene 1** startet `/build` die lokale Supabase neu (`supabase stop` und `supabase start`) und spielt die Migrationen ein (`supabase db reset`), damit Einstellungen und Tabellen gelten.
+- **Runde 2:** Ebenen 6 → 7 → 8, jede dateidisjunkt geprüft. Nach Ebene 6 startet `/build` die lokale Supabase neu (`supabase stop` und `supabase start`, wegen `secure_password_change`) und spielt die neue Migration ein. `claim_mail_request` (T32) und sein Aufruf (T36) laufen parallel; der Vertrag steht deshalb in beiden Aufgaben: Parameter `p_email`, `p_ip`, Antwort `send` | `duplicate` | `limit`.
 - **EC-3** (nur der neueste Link zum Zurücksetzen gilt) garantiert Supabase selbst. `/qa` prüft es ausdrücklich.
 - Während `/build` läuft jede `[P]`-Aufgabe der aktiven Ebene in einem eigenen Sub-Agenten mit eigenem Git-Worktree. Danach führt der Haupt-Agent zusammen, prüft gegen die AC-IDs der Ebene und hakt hier ab. Sub-Agenten erklären sich nie selbst für fertig.
