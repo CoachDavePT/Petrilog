@@ -397,3 +397,16 @@ Keine. PROJ-2 braucht weder Einstellungen in Supabase noch beim Hoster.
 ## Offene Fragen
 
 - keine
+
+## Umsetzungsnotizen (`/build`, 2026-09-30)
+
+- **Reihenfolge der Regeln in der Migration:** Die Überschneidungsregel `sessions_no_overlap` wird erst nach der Regel „höchstens eine laufende Session“ angelegt. Sonst meldete ein zweiter Start den Überschneidungsfehler statt `sessions_one_running_per_user`, weil zwei laufende Sessions immer überlappen.
+- **EC-13 sichert die App, nicht die Datenbank:** Keine Aktion setzt das Ende je wieder auf leer. Wer die Datenbank-Schnittstelle direkt aufruft, könnte seine **eigene** beendete Session wieder öffnen. Fremde Daten sind davon nicht betroffen.
+- **Meldungsort:** Überschneidung und „Fang läge außerhalb“ kommen als Hinweis über dem Hauptbutton, nicht an einem Feld, weil sie Start und Ende zugleich betreffen. Nur beim Beenden mit eigener Uhrzeit steht die Meldung am Zeitfeld (AC-12).
+- **EC-4:** Das Fang-Formular schickt `sessionWasRunning` mit, wenn es für eine laufende Session geöffnet wurde. Dann bleibt die ermittelte GPS-Position erhalten, auch wenn die Session inzwischen beendet ist, und eine Zeit nach dem Ende ergibt „Die Session wurde inzwischen beendet (Ende …)“.
+- **Kennungen der Formulare:** Sie entstehen in `src/lib/fishing/entry-id.ts`, mit Ersatz über `getRandomValues`, weil `crypto.randomUUID` nur in sicheren Umgebungen (HTTPS, `localhost`) existiert.
+- **GPS braucht HTTPS:** Browser geben den Standort nur über HTTPS oder `localhost` heraus. Wer die lokale App vom Handy über `http://<LAN-IP>` öffnet, speichert deshalb immer „ohne Position“. Für Tests am Handy braucht es HTTPS (z. B. `next dev --experimental-https`) oder später das Hosting.
+- **Rahmen:** Tab-Leiste und Leiste der aktiven Session halten ihren Platz selbst frei. Das Root-Layout setzt `viewport-fit=cover`, damit die Leisten den Bereich über dem Home-Indikator berücksichtigen. Die kompakte Kopfzeile bleibt beim Scrollen oben stehen.
+- **Detailansicht:** Die Dauer im Kopf wird beim Laden berechnet und tickt nicht. Die Kennzahlen-Kacheln und die Leiste der aktiven Session ticken minütlich. Ab 12 h Laufzeit hat die Seite zwei Einstiege in dasselbe „Session beenden“-Sheet (Hinweis und Button unten).
+- **Genauigkeit über 100.000 m** wird auf 100.000 gekappt, statt die Position zu verwerfen.
+- **Live geprüft** gegen die lokale Supabase und die laufende App: Abfrageformen (verknüpfte Fänge, Fanganzahl, Sortierung, Überschneidungsfilter), alle Server Actions über HTTP mit zwei Nutzern (31 Prüfungen), alle Seiten in den Zuständen „leer“, „läuft“, „über 12 h“, „mit Fängen“, fremder Nutzer (404) und ohne Anmeldung (Login).
