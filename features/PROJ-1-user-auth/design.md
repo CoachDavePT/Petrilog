@@ -309,3 +309,23 @@ Für `/qa` blockiert nur die erste Zeile. Alle `go-live`-Zeilen sind Aufgaben f�
 ## Offene Fragen
 
 - [ ] Beim Hosting ruft der Next.js-Server Supabase Auth auf. Supabase sieht dann für alle Nutzer die IP des Servers, und die festen Supabase-Grenzen pro IP gelten für alle zusammen. Vor dem ersten `/deploy` klären, ob sich die echte IP weiterreichen lässt oder die Grenzen passend eingestellt werden müssen (auch in `spec.md` → Offene Fragen).
+
+## Umsetzungsnotizen (`/build`, 2026-09-29)
+
+Was beim Bauen vom Plan abwich oder dazukam. Am Vertrag in `spec.md` ändert sich nichts.
+
+- **shadcn-Bausteine an das Design-System angepasst:** `button` (Größen 36/44/56 px, 3-px-Fokusring, Druck-Effekt), `input` (52 px, 16 px Schrift) und `alert` (Töne info, success, warning, danger). Das ist der vorgesehene Weg bei shadcn, kein Nachbau. Dazu kam `src/components/theme-provider.tsx` (Dunkelmodus folgt dem Gerät).
+- **Zusätzliche gemeinsame Bausteine**, weil mehrere Aufgaben dasselbe brauchten:
+  - `src/lib/auth/password-check.ts`: eine Passwortprüfung durch die Bremse für Login, „Passwort ändern“ und „Konto löschen“
+  - `src/lib/auth/confirmation-mail.ts`: Kontostatus und erneutes Senden der Bestätigungsmail
+  - `src/lib/auth/log.ts`: technische Fehler ohne personenbezogene Daten protokollieren
+  - `src/components/auth/use-auth-action.ts` und `form-notice.tsx`: gemeinsames Absende- und Notice-Verhalten aller Formulare
+  - `src/components/simple-page.tsx`: helle Seite ohne Rahmen
+  - `src/components/notice-toast.tsx`: Erfolgs-Notice nach einer Weiterleitung
+  - `src/components/account/account-row.tsx`: Zeilen der Konto-Seite
+- **Passwörter im Dev-Log:** `next dev` (16.3) protokolliert standardmäßig die Argumente jeder Server Action, also auch Passwörter im Klartext. Abgeschaltet mit `logging.serverFunctions: false` in `next.config.ts`.
+- **Zeitfenster der Grenzen exklusiv:** Ein Eintrag von vor genau 15 bzw. 60 Minuten zählt nicht mehr mit. Nur so endet die Sperre wie in AC-23 genau 15 Minuten nach dem jüngsten Fehlversuch.
+- **Supabase-eigenes Limit (429) beim Login** wird als Sperre von 5 Minuten gemeldet, nicht als Verbindungsfehler.
+- **Weg zurück von der Konto-Seite:** Bis PROJ-2 die Tab-Leiste bringt, hat die Konto-Seite einen schlichten Link „Startseite“. PROJ-2 ersetzt ihn.
+- **Mindestabstand von 10 Sekunden:** Wird eine Mail innerhalb von 10 Sekunden nach der vorigen für dasselbe Konto angefordert, verschickt Supabase keine zweite. Der Nutzer sieht trotzdem „Mail gesendet“ (EC-5).
+- **Verifikation:** Ein Browser-Durchlauf gegen die lokale Supabase mit Mailpit ergab 55/55 Prüfungen über AC-1 bis AC-30, EC-1, EC-3, EC-7, EC-8, EC-9 und EC-11. Er wurde nicht als Testsuite eingecheckt, das übernehmen `/qa` und `/e2e-tests`.

@@ -7,6 +7,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { logAuthError } from '../log'
 import { MESSAGES, tooManyAttempts } from '../messages'
 import { checkPassword } from '../password-check'
 import { requireUser } from '../require-user'
@@ -41,7 +42,8 @@ export async function setNewPassword(input: NewPasswordInput): Promise<ActionSta
   try {
     const problem = await saveNewPassword(parsed.data.password)
     if (problem) return problem
-  } catch {
+  } catch (e) {
+    logAuthError('set-new-password', e)
     return { status: 'error', message: MESSAGES.network }
   }
   revalidatePath('/', 'layout')
@@ -61,7 +63,8 @@ export async function changePassword(input: ChangePasswordInput): Promise<Action
 
     const problem = await saveNewPassword(parsed.data.newPassword)
     if (problem) return problem
-  } catch {
+  } catch (e) {
+    logAuthError('change-password', e)
     return { status: 'error', message: MESSAGES.network }
   }
   return { status: 'success', message: MESSAGES.passwordChanged }
@@ -80,7 +83,8 @@ export async function deleteAccount(input: DeleteAccountInput): Promise<ActionSt
 
     const { error } = await createAdminClient().auth.admin.deleteUser(user.id)
     if (error) throw error
-  } catch {
+  } catch (e) {
+    logAuthError('delete-account', e)
     return { status: 'error', message: MESSAGES.network }
   }
 

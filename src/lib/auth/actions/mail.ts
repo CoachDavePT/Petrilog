@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { clientIp } from '../client-ip'
 import { resendConfirmationIfUnconfirmed } from '../confirmation-mail'
+import { logAuthError } from '../log'
 import { MESSAGES } from '../messages'
 import { atLeast } from '../min-duration'
 import { emailOnlySchema, fieldErrors, type ActionState, type EmailOnlyInput } from '../schemas'
@@ -36,7 +37,8 @@ async function requestMail(input: EmailOnlyInput, kind: MailKind, sentMessage: s
         if (error && error.status !== 429) throw error
       }
       return { status: 'success', message: sentMessage }
-    } catch {
+    } catch (e) {
+      logAuthError(`mail:${kind}`, e)
       return { status: 'error', message: MESSAGES.network }
     }
   })

@@ -3,6 +3,9 @@ import type { NextConfig } from 'next'
 // Security headers — .claude/rules/security.md, docs/stacks/framework-nextjs.md.
 // Referrer-Policy also keeps the one-time token of an email link from reaching other sites.
 const nextConfig: NextConfig = {
+  // `next dev` logs every Server Function call with its arguments — that would print passwords in
+  // plain text (PROJ-1 spec: passwords are never logged).
+  logging: { serverFunctions: false },
   async headers() {
     return [
       {

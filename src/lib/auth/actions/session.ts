@@ -4,6 +4,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { logAuthError } from '../log'
 import { MESSAGES, tooManyAttempts } from '../messages'
 import { atLeast } from '../min-duration'
 import { checkPassword, type PasswordCheck } from '../password-check'
@@ -15,7 +16,10 @@ export async function login(input: LoginInput): Promise<ActionState> {
   const { email, password } = parsed.data
 
   const check = await atLeast<PasswordCheck | 'network'>(() =>
-    checkPassword(email, password).catch(() => 'network' as const),
+    checkPassword(email, password).catch((e) => {
+      logAuthError('login', e)
+      return 'network' as const
+    }),
   )
 
   if (check === 'network') return { status: 'error', message: MESSAGES.network }

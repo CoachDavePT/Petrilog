@@ -7,6 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { clientIp } from '../client-ip'
 import { accountState, resendConfirmationIfUnconfirmed } from '../confirmation-mail'
+import { logAuthError } from '../log'
 import { MESSAGES } from '../messages'
 import { atLeast } from '../min-duration'
 import { fieldErrors, registerSchema, type ActionState, type RegisterInput } from '../schemas'
@@ -37,7 +38,8 @@ export async function register(input: RegisterInput): Promise<ActionState> {
       }
       // 'confirmed': nothing happens, not even a mail (AC-6).
       return { status: 'success' }
-    } catch {
+    } catch (e) {
+      logAuthError('register', e)
       return { status: 'error', message: MESSAGES.network }
     }
   })
