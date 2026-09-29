@@ -23,7 +23,7 @@ The scaffolder already ran `npm install` and a setup check. Open this project in
 `/init` runs a **discovery interview**, one question at a time (always with a recommended answer you confirm or correct), then writes your **PRD** (`docs/PRD.md`) and a prioritized **feature map** (`features/INDEX.md`). From there you build feature by feature.
 
 ```bash
-npm run dev       # Start the dev server → http://localhost:3000
+npm run dev       # Start the dev server → http://localhost:3553
 ```
 
 ---
@@ -203,7 +203,7 @@ Memorized API knowledge goes stale. Connecting a live-docs MCP server like **[Co
 ## Scripts
 
 ```bash
-npm run dev          # Development server (localhost:3000)
+npm run dev          # Development server (localhost:3553)
 npm run build        # Production build
 npm run start        # Production server
 npm run lint         # ESLint

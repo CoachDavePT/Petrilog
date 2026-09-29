@@ -73,7 +73,7 @@ docs/
 ## Build & Test Commands
 
 ```bash
-npm run dev          # Development server (localhost:3000)
+npm run dev          # Development server (localhost:3553)
 npm run build        # Production build
 npm run lint         # ESLint
 npm run start        # Production server

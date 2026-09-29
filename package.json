@@ -4,9 +4,9 @@
   "description": "Built with the AI Engineering Kit — a spec-driven Claude Code workflow on Next.js + Supabase",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3553",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3553",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -253,7 +253,7 @@ Die Sperre hängt nur an Adresse und IP, nie daran, ob es das Konto gibt. Deshal
 
 | Einstellung | Wert | Warum | → AC |
 |---|---|---|---|
-| Adresse der App (`site_url`) | `http://localhost:3000`, als zusätzliche Weiterleitungsziele `http://localhost:3000/**` und `http://127.0.0.1:3000/**` | Mail-Links müssen auf dieselbe Adresse führen, unter der die App läuft. Sonst landet die Anmeldung in einem anderen Cookie-Bereich. | AC-3, AC-17 |
+| Adresse der App (`site_url`) | `http://localhost:3553`, als zusätzliche Weiterleitungsziele `http://localhost:3553/**` und `http://127.0.0.1:3553/**` (Petrilog läuft fest auf Port 3553, damit es nicht mit anderen lokalen Projekten auf 3000/3001 kollidiert) | Mail-Links müssen auf dieselbe Adresse führen, unter der die App läuft. Sonst landet die Anmeldung in einem anderen Cookie-Bereich. | AC-3, AC-17 |
 | E-Mail-Bestätigung | an | Produktentscheidung | AC-1, AC-9 |
 | Mindestlänge Passwort | 8 | zweite Absicherung neben der App | AC-5 |
 | Gültigkeit der Mail-Links | 24 Stunden (86 400 s) | Bestätigung; das Zurücksetzen verkürzt die App auf 1 Stunde | AC-3, AC-17 |
