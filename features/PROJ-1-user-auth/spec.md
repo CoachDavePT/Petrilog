@@ -20,6 +20,7 @@
 
 ## Nicht enthalten (Out of Scope)
 - **CAPTCHA** bei Registrierung und „Passwort vergessen“: bewusst nicht im MVP (siehe Produktentscheidungen). Muss vor dem ersten gehosteten Betrieb kommen (Offene Fragen, `/deploy`).
+- **Bremse auf dem direkten Weg zu Supabase:** Die Grenzen aus AC-23 bis AC-26 gelten für Anfragen über die App. Wer die Supabase-Schnittstelle direkt aufruft, wird im MVP nur durch die eingebauten Grenzen von Supabase pro IP gebremst. Diese Lücke ist bewusst offen und eine **Deploy-Sperre** (siehe Technische Anforderungen).
 - **Abgleich mit bekannten, geleakten Passwörtern:** im Supabase Free Plan nicht verfügbar. Wird mit dem Hosting erneut bewertet.
 - **E-Mail-Adresse ändern:** braucht einen eigenen Bestätigungsablauf (alte und neue Adresse). Kommt später über `/refine PROJ-1`.
 - **Login mit Google oder Apple, Magic Link, Zwei-Faktor-Anmeldung.**
@@ -40,6 +41,7 @@
 - [ ] **AC-4** — Angenommen eine Registrierung wurde abgeschickt, wenn das Konto angelegt wird, dann entsteht automatisch genau ein eigenes Profil zu diesem Konto, an das spätere Features die Daten des Nutzers binden
 - [ ] **AC-5** — Angenommen ein Besucher ist auf der Registrierungsseite, wenn er eine ungültige E-Mail-Adresse oder ein Passwort mit weniger als 8 Zeichen eingibt, dann wird kein Konto angelegt, am betroffenen Feld erscheint eine verständliche Fehlermeldung und seine Eingaben bleiben erhalten. Das gilt auch, wenn die Prüfung im Browser umgangen wird
 - [ ] **AC-6** — Angenommen für eine E-Mail-Adresse existiert bereits ein Konto, wenn sich jemand mit dieser Adresse registriert, dann sieht er denselben Bildschirm „Prüfe dein Postfach“ wie bei einer neuen Adresse, es entsteht kein zweites Konto und das bestehende Konto samt Passwort bleibt unverändert
+- [ ] **AC-34** — Angenommen ein Nutzer legt ein neues Passwort fest (Registrierung, „Neues Passwort festlegen“, „Passwort ändern“), wenn es länger als 72 Bytes ist (72 einfache Zeichen, Umlaute zählen doppelt, Emojis vierfach), dann wird nichts gespeichert, es geht keine Mail raus, keine Grenze aus AC-25 oder AC-26 wird belastet, und am Feld erscheint „Das Passwort ist zu lang. Erlaubt sind 72 Zeichen, Umlaute und Emojis zählen mehrfach.“. Das gilt auch, wenn die Prüfung im Browser umgangen wird
 
 ### Login & Anmeldezustand
 - [ ] **AC-7** — Angenommen ein bestätigtes Konto existiert, wenn der Nutzer auf der Login-Seite die richtige E-Mail-Adresse und das richtige Passwort eingibt, dann ist er angemeldet und landet auf der Startseite der App
@@ -58,6 +60,7 @@
 - [ ] **AC-16** — Angenommen ein Besucher ist auf der Login-Seite, wenn er „Passwort vergessen?“ antippt und eine E-Mail-Adresse abschickt, dann sieht er immer dieselbe Meldung („Falls es ein Konto zu dieser Adresse gibt, haben wir dir einen Link geschickt.“), und eine Mail mit Link geht nur raus, wenn zu der Adresse ein Konto existiert
 - [ ] **AC-17** — Angenommen ein Nutzer hat eine Mail zum Zurücksetzen erhalten, wenn er den Link innerhalb von 1 Stunde öffnet und ein neues Passwort mit mindestens 8 Zeichen festlegt, dann ist das neue Passwort gültig, das alte nicht mehr, er ist angemeldet, landet auf der Startseite der App und sieht die Rückmeldung „Passwort geändert“
 - [ ] **AC-18** — Angenommen ein Nutzer ist auf mehreren Geräten angemeldet, wenn er sein Passwort auf einem Gerät zurücksetzt, dann sind alle anderen Geräte abgemeldet und müssen sich mit dem neuen Passwort anmelden
+- [ ] **AC-33** — Angenommen ein Nutzer ist nicht innerhalb der letzten 15 Minuten über einen gültigen Link zum Zurücksetzen gekommen (er ist regulär angemeldet oder das Zeitfenster ist vorbei), wenn er „Neues Passwort festlegen“ aufruft oder dort ein Passwort abschickt, dann wird kein Passwort gespeichert und er landet auf der Konto-Seite. Dort kann er sein Passwort nur unter „Passwort ändern“ mit dem aktuellen Passwort ändern (AC-20, AC-21). Nicht angemeldete Besucher landen auf der Login-Seite
 
 ### Konto-Seite
 - [ ] **AC-19** — Angenommen ein Nutzer ist angemeldet, wenn er die Konto-Seite öffnet, dann sieht er seine E-Mail-Adresse (nur zum Lesen) sowie „Passwort ändern“, „Meine Daten exportieren“, „Konto löschen“, „Abmelden“ und einen Link zur Datenschutzerklärung
@@ -66,10 +69,10 @@
 - [ ] **AC-22** — Angenommen ein Nutzer ist angemeldet, wenn er „Abmelden“ antippt, dann ist er auf diesem Gerät abgemeldet, landet auf der Login-Seite und sieht auch über die Zurück-Taste des Browsers keine Inhalte der App mehr
 
 ### Missbrauchsschutz
-- [ ] **AC-23** — Angenommen für dieselbe E-Mail-Adresse gab es 5 fehlgeschlagene Login-Versuche innerhalb von 15 Minuten, wenn ein weiterer Versuch erfolgt, dann wird er 15 Minuten lang abgelehnt, auch mit richtigem Passwort, und der Nutzer sieht „Zu viele Versuche. Bitte versuche es in X Minuten erneut.“
-- [ ] **AC-24** — Angenommen von derselben IP-Adresse gab es 20 fehlgeschlagene Login-Versuche innerhalb von 15 Minuten, egal mit welchen E-Mail-Adressen, wenn ein weiterer Versuch von dort erfolgt, dann wird er 15 Minuten lang abgelehnt, mit derselben Meldung wie in AC-23
+- [ ] **AC-23** — Angenommen für dieselbe E-Mail-Adresse gab es über die App 5 fehlgeschlagene Login-Versuche innerhalb von 15 Minuten, wenn ein weiterer Versuch erfolgt, dann wird er 15 Minuten lang abgelehnt, auch mit richtigem Passwort, und der Nutzer sieht „Zu viele Versuche. Bitte versuche es in X Minuten erneut.“
+- [ ] **AC-24** — Angenommen von derselben IP-Adresse gab es über die App 20 fehlgeschlagene Login-Versuche innerhalb von 15 Minuten, egal mit welchen E-Mail-Adressen, wenn ein weiterer Versuch von dort erfolgt, dann wird er 15 Minuten lang abgelehnt, mit derselben Meldung wie in AC-23. Eine vom Aufrufer selbst angegebene IP-Adresse (z. B. ein gefälschter Header) umgeht die Grenze nicht
 - [ ] **AC-25** — Angenommen für eine E-Mail-Adresse wurden in der letzten Stunde schon 3 Mails angefordert (Bestätigung erneut senden oder Passwort vergessen), wenn eine weitere angefordert wird, dann geht keine Mail raus und der Nutzer sieht „Bitte warte etwas, bevor du eine weitere Mail anforderst.“. Diese Meldung erscheint unabhängig davon, ob es zu der Adresse ein Konto gibt
-- [ ] **AC-26** — Angenommen von derselben IP-Adresse wurden in der letzten Stunde schon 5 Konten registriert, wenn eine weitere Registrierung erfolgt, dann wird kein Konto angelegt und der Besucher sieht „Zu viele Registrierungen. Bitte versuche es später erneut.“
+- [ ] **AC-26** — Angenommen von derselben IP-Adresse wurden über die App in der letzten Stunde schon 5 Konten registriert, wenn eine weitere Registrierung erfolgt, dann wird kein Konto angelegt und der Besucher sieht „Zu viele Registrierungen. Bitte versuche es später erneut.“. Wie in AC-24 umgeht eine selbst angegebene IP-Adresse die Grenze nicht
 
 ### Datenschutz
 - [ ] **AC-27** — Angenommen ein Nutzer ist auf der Konto-Seite, wenn er „Konto löschen“ antippt, dann erscheint ein Bestätigungsdialog, der sagt, dass das Konto und alle Sessions, Fänge und Positionen endgültig gelöscht werden, und der zur Bestätigung das Passwort verlangt (Art. 17 DSGVO; Art. 32 Abs. 2 / Art. 6 Abs. 4 DSG)
@@ -92,6 +95,7 @@
 - **EC-10** — Angenommen eine E-Mail-Adresse ist durch fremde Fehlversuche gesperrt (AC-23), wenn der echte Besitzer über „Passwort vergessen“ einen Link anfordert und sein Passwort zurücksetzt, dann ist er dadurch angemeldet, und die Sperre hält ihn nicht aus seinem Konto
 - **EC-11** — Angenommen ein Nutzer gibt im Löschdialog ein falsches Passwort ein, wenn er bestätigt, dann wird nichts gelöscht und er sieht „Das Passwort ist falsch.“. Fehlversuche hier zählen zur Grenze aus AC-23
 - **EC-12** — Angenommen ein Nutzer hat eine laufende Session (PROJ-2), wenn er sein Konto löscht, dann wird auch die laufende Session mit allen Fängen gelöscht und es bleibt nichts zurück
+- **EC-13** — Angenommen ein Nutzer hat einen Link zum Zurücksetzen geöffnet, aber innerhalb von 15 Minuten kein neues Passwort gespeichert, wenn er es danach abschickt, dann gilt AC-33: Er bleibt angemeldet, landet auf der Konto-Seite und sieht „Die Zeit zum Festlegen ist abgelaufen. Ändere dein Passwort hier mit dem aktuellen Passwort oder melde dich ab und fordere über „Passwort vergessen“ einen neuen Link an.“
 
 ## Technische Anforderungen
 - **Sicherheit:** Alle Formulare mit Zugangsdaten werden per POST abgeschickt, nie stehen E-Mail, Passwort oder Tokens in der Adresszeile. Passwörter werden nie im Klartext gespeichert oder protokolliert.
@@ -100,6 +104,7 @@
 - **Mobile-first:** Eingabefelder mit passender Tastatur (E-Mail-Tastatur) und Autofill-Angaben, damit Passwort-Manager funktionieren. Hauptbutton groß im Daumenbereich, Login und Registrierung auf dem dunklen Wald-Hintergrund mit dem Schriftzug „Petrilog“ (`docs/app-shell.md`, `docs/design-system.md`).
 - **Mails lokal:** Alle Mails (Bestätigung, Zurücksetzen) landen während der Entwicklung im Test-Postfach der lokalen Supabase (Mailpit).
 - **Sprache:** Alle Texte, Mails und Fehlermeldungen auf Deutsch.
+- **Deploy-Sperre:** PROJ-1 darf erst gehostet werden, wenn auch der direkte Weg zur Supabase-Schnittstelle gegen Durchprobieren von Passwörtern und Massen-Registrierung geschützt ist, z. B. durch das CAPTCHA von Supabase, das auch direkte Aufrufe verlangt. Dazu gehört auch die Frage nach der echten IP-Adresse hinter dem Server (Offene Fragen). `/deploy` prüft diese Bedingung und bricht ab, solange sie nicht erfüllt ist. Für den lokalen Betrieb gilt sie nicht.
 
 ## Offene Fragen
 - [ ] CAPTCHA bei Registrierung und „Passwort vergessen“ vor dem ersten gehosteten Betrieb nachrüsten (`/refine PROJ-1` vor `/deploy`)
@@ -107,7 +112,7 @@
 - [ ] Mail-Dienst für den gehosteten Betrieb wählen (Auftragsverarbeiter, AVV), siehe `docs/privacy.md`
 - [ ] Verantwortlichen für die Datenschutzerklärung festlegen, siehe `docs/privacy.md`
 - [ ] Mindestalter bzw. Zustimmung der Eltern für jugendliche Angler: Frage an eine Anwältin, siehe `docs/privacy.md`
-- [ ] Vor dem ersten Hosting: Supabase sieht bei Anmeldungen über den Server dessen IP-Adresse statt der des Nutzers, und wer die Supabase-Schnittstelle direkt aufruft, umgeht die Bremse der App. Beides klären, zusammen mit dem CAPTCHA (siehe `design.md` → Offene Fragen)
+- [ ] Vor dem ersten Hosting: Supabase sieht bei Anmeldungen über den Server dessen IP-Adresse statt der des Nutzers, und wer die Supabase-Schnittstelle direkt aufruft, umgeht die Bremse der App. Beides klären, zusammen mit dem CAPTCHA (siehe `design.md` → Offene Fragen). Seit 2026-09-29 ist das eine Deploy-Sperre (Technische Anforderungen)
 
 ## Entscheidungsprotokoll
 
@@ -128,3 +133,7 @@
 | Konto löschen sofort und endgültig, mit Passwort bestätigt | Einfacher und ehrlicher als eine Löschfrist. Die Passwortabfrage schützt vor versehentlichem Löschen und vor fremden Händen am entsperrten Handy. | 2026-09-29 |
 | Datenexport als JSON-Datei, den spätere Features ergänzen | Ein Export für alle Daten statt eines Exports pro Feature. Die Datei ist maschinenlesbar, wie es die Datenübertragbarkeit verlangt. | 2026-09-29 |
 | Bestätigungslink 24 Stunden, Link zum Zurücksetzen 1 Stunde gültig | Die Bestätigung darf etwas liegen bleiben. Der Link zum Zurücksetzen öffnet das Konto und soll deshalb nur kurz gelten. | 2026-09-29 |
+| Direkter Weg zu Supabase im MVP ungebremst, dafür Deploy-Sperre (nach QA, BUG-2) | Die App läuft laut PRD nur lokal. Ein CAPTCHA brächte jetzt einen neuen Dienstleister samt DSGVO-Prüfung, und die IP-Frage stellt sich mit dem Hosting ohnehin neu. AC-23, AC-24 und AC-26 gelten deshalb ausdrücklich „über die App“. | 2026-09-29 |
+| „Neues Passwort festlegen“ nur bis 15 Minuten nach dem Öffnen eines Links zum Zurücksetzen (nach QA, BUG-3) | Sonst ändern fremde Hände am entsperrten Handy das Passwort ohne das aktuelle Passwort und umgehen damit AC-21 und die Bremse. 15 Minuten reichen zum Tippen, ein liegengelassenes Handy öffnet die Lücke nicht wieder. | 2026-09-29 |
+| Neue Passwörter höchstens 72 Bytes, mit eigener Meldung (nach QA, BUG-7) | Das ist die Grenze des Passwort-Hashes. Ohne Regel sah der Nutzer bei langen Passwörtern mit Umlauten „Keine Verbindung“ und verbrauchte dabei ein Kontingent. | 2026-09-29 |
+| Selbst angegebene IP-Adressen zählen nicht für die Grenzen (nach QA, BUG-1) | Klarstellung in AC-24 und AC-26: Eine Grenze pro IP, die der Aufrufer selbst wählen kann, schützt nicht | 2026-09-29 |
