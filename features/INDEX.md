@@ -25,8 +25,11 @@
 
 | ID | Feature | Description | Status | Spec | Created |
 |----|---------|-------------|--------|------|---------|
+| PROJ-1 | Registrierung & Login | Registrierung, Login und Logout mit E-Mail und Passwort, Umleitung nicht angemeldeter Nutzer, schlanke Konto-Seite und das Row-Level-Security-Muster (jeder sieht nur seine eigenen Daten). | Roadmap | — | 2026-09-29 |
+| PROJ-2 | Sessions & Fänge | Sessions live oder nachträglich erfassen, Fänge mit GPS-Position eintragen, bearbeiten und löschen, dazu Übersicht, Detailansicht und der App-Rahmen (Kopfzeile, Tab-Leiste, Leiste der aktiven Session). | Roadmap | — | 2026-09-29 |
+| PROJ-3 | Automatische Wetterdaten | Ruft Wetterdaten von Open-Meteo zu Position und Uhrzeit jeder Session und jedes Fangs ab (auch rückwirkend), kennzeichnet Einträge ohne Wetterdaten und zeigt sie in den Detailansichten. | Roadmap | — | 2026-09-29 |
 
-**Build order:** _P0 (MVP): PROJ-1 → PROJ-2 · P1: PROJ-3 (needs PROJ-2) · P2: PROJ-4 (needs PROJ-2) — written by `/init`, kept current by `/refine`_
+**Build order:** P0 (MVP): PROJ-1 → PROJ-2 (braucht PROJ-1) → PROJ-3 (braucht PROJ-2)
 
 <!-- Add features above this line -->
 
@@ -36,4 +39,4 @@
 
 - _v1.0.0 · 2026-01-31 · https://app.example.com · PROJ-1, PROJ-2_
 
-## Next Available ID: PROJ-1
+## Next Available ID: PROJ-4

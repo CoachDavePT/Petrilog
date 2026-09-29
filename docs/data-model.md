@@ -1,38 +1,40 @@
-# Data Model
+# Datenmodell
 
-> The app-wide map of **what data this product stores and how it connects** — the shared blueprint every feature's tables conform to.
+> Die app-weite Übersicht, **welche Daten Petrilog speichert und wie sie zusammenhängen** — der gemeinsame Bauplan, an den sich die Tabellen jedes Features halten.
 >
-> - Created by `/init` (the first holistic pass: entities + relationships).
-> - Refined by `/architecture` as each feature is designed.
-> - **Altitude:** entities, relationships, and ownership live here (product-level, anyone can read them). Column types, indexes, and exact foreign keys are decided per feature in that feature's `design.md` — not here.
+> - Erstellt von `/init` (erster Gesamtentwurf: Entitäten + Beziehungen).
+> - Verfeinert von `/architecture`, sobald ein Feature entworfen wird.
+> - **Flughöhe:** Entitäten, Beziehungen und Eigentum stehen hier (Produktebene). Spaltentypen, Indizes und exakte Fremdschlüssel werden pro Feature in dessen `design.md` entschieden — nicht hier.
 
-## Entities
+## Entitäten
 
-_Each entity is a kind of thing the app stores (a real-world noun). List the ones you know so far with a one-line purpose and who owns or can see it. No column types — just the thing and what it's for._
+| Entität | Was sie darstellt | Gehört / sichtbar für |
+|---------|-------------------|------------------------|
+| profiles | Das Konto eines Anglers, eins zu eins verknüpft mit dem Supabase-Auth-Nutzer. Wird bei der Registrierung automatisch angelegt. Vorerst kaum mehr als die Verknüpfung und das Anlagedatum, mit Platz für spätere Einstellungen. | nur der Nutzer selbst |
+| sessions | Ein Angelausflug: Start, Ende (leer, solange die Session läuft), Position mit Genauigkeit (optional), Gewässername und Notiz (optional) sowie eine Wetter-Momentaufnahme zum Start. | nur der Besitzer |
+| catches | Ein einzelner Fang innerhalb einer Session: Uhrzeit, Fischart, Länge, optional Gewicht, Köder, entnommen oder zurückgesetzt, eigene Position mit Genauigkeit und eine Wetter-Momentaufnahme zur Fangzeit. | nur der Besitzer |
 
-| Entity | What it represents | Owned by / who can see it |
-|--------|--------------------|---------------------------|
-| _profiles_ | _A user's account profile_ | _the user themselves_ |
-| _..._ | _..._ | _..._ |
+**Bewusst keine eigenen Entitäten:**
+- **Wetter** ist eine Momentaufnahme, die zur Session bzw. zum Fang gehört: Temperatur, Luftdruck, Windgeschwindigkeit, Windrichtung, Bewölkung, Niederschlag, Wettercode und dazu der Status „mit“ oder „ohne Wetterdaten“. Ob das als JSON oder in eigenen Spalten gespeichert wird, entscheidet `/architecture`.
+- **Fischarten** sind eine feste Auswahlliste in der App (Barsch, Hecht, Zander … Sonstige), keine Tabelle. Eine eigene Tabelle käme erst infrage, wenn Nutzer eigene Arten anlegen sollen.
 
-## Relationships
+## Beziehungen
 
-_How the entities connect, in plain language. This is where coherence comes from — get the connections right once, up front._
+- Ein Profil hat viele Sessions.
+- Eine Session gehört genau einem Profil und hat viele Fänge.
+- Ein Fang gehört genau einer Session und damit demselben Nutzer. Den Nutzerbezug speichert der Fang zusätzlich selbst, damit die Datenbank die Zugriffsregel (Row Level Security: nur `user_id = auth.uid()`) direkt prüfen kann.
+- Pro Nutzer kann höchstens **eine** Session gleichzeitig laufen, also ohne Ende sein.
+- Wird eine Session gelöscht, verschwinden auch ihre Fänge.
+- **Bereit für die Karte:** Weil Sessions und Fänge Koordinaten und Genauigkeit schon mitbringen, kann die geplante Kartendarstellung später ohne Tabellenänderung dazukommen.
 
-- _A profile has many ..._
-- _Each ... belongs to exactly one ..._
-- _A ... can have many ..._
-
-## Diagram (optional)
-
-_A simple text sketch of the model, filled in as it firms up._
+## Diagramm
 
 ```
-profiles
-  └─ owns many ...
-        └─ has many ...
+profiles (1:1 Auth-Nutzer)
+  └─ hat viele sessions   [max. 1 aktive]  + Wetter-Momentaufnahme
+        └─ hat viele catches              + Wetter-Momentaufnahme
 ```
 
 ---
 
-_This is a living document. When `/architecture` designs a feature that introduces or changes an entity, it updates this map first, so later features build against an accurate picture. Run `/init` to create the first version from your feature map._
+_Dies ist ein lebendes Dokument. Wenn `/architecture` ein Feature entwirft, das eine Entität einführt oder ändert, wird diese Übersicht zuerst aktualisiert, damit spätere Features gegen ein genaues Bild bauen._
