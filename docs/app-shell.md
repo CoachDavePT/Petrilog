@@ -15,8 +15,8 @@ Owner: PROJ-2 (Sessions & Fänge). Die Sessions-Übersicht trägt Kopfzeile, Tab
 | Bereich | Was der Nutzer dort tut | Sichtbar für | Feature |
 |---------|-------------------------|--------------|---------|
 | Sessions | Übersicht aller Sessions (neueste zuerst), Einstieg in die Detailansicht, „Session nachtragen“ | angemeldet | PROJ-2 |
-| Start | Keine eigene Seite, sondern eine Aktion: Ohne aktive Session öffnet sie „Session starten“, mit aktiver Session deren Detailansicht. | angemeldet | PROJ-2 |
-| Konto | Eigene E-Mail-Adresse und „Abmelden“ | angemeldet | PROJ-1 |
+| Start | Keine eigene Seite, sondern eine Aktion (`/start`): Ohne aktive Session öffnet sie „Session starten“, mit aktiver Session deren Detailansicht. | angemeldet | PROJ-2 |
+| Konto | Eigene E-Mail-Adresse, Passwort ändern, Datenexport, Konto löschen, „Abmelden“ | angemeldet | PROJ-1 (Inhalt), Rahmen von PROJ-2 |
 
 ## Layout-Bereiche
 
@@ -32,7 +32,8 @@ Owner: PROJ-2 (Sessions & Fänge). Die Sessions-Übersicht trägt Kopfzeile, Tab
 - **Laden:** Platzhalter in Kartenform (Skeleton) an der Stelle der späteren Inhalte, kein ganzseitiger Spinner.
 - **Leer:** Ein kurzer, freundlicher Satz mit passender Aktion, z. B. „Noch keine Fänge. Petri Heil!“ oder die Karte „Bereit für den nächsten Wurf?“ mit „Session starten“.
 - **Fehler:** Eine Notice im Warnton direkt im Inhalt mit verständlichem Text. Eingaben gehen dabei nicht verloren.
-- **Rückmeldung:** Eine Erfolgs-Notice oben am Bildschirm, die nach etwa 2 Sekunden verschwindet (z. B. „Fang gespeichert“, „Session beendet · 1:42 h“).
+- **Rückmeldung:** Eine Erfolgs-Notice oben am Bildschirm, die nach etwa 2 Sekunden verschwindet (z. B. „Fang gespeichert“, „Session beendet · 1:42 h“). Nach einer Weiterleitung kommt sie über einen kurzen, festen Code in der Adresse (`?notice=…`); unbekannte Codes werden ignoriert, Inhalte stehen nie in der Adresse.
+- **Unbekannte oder fremde Einträge:** Die deutsche Seite „Diese Seite gibt es nicht.“, ohne zu verraten, ob der Eintrag existiert.
 
 ## Anmeldezustand
 
@@ -43,14 +44,16 @@ Owner: PROJ-2 (Sessions & Fänge). Die Sessions-Übersicht trägt Kopfzeile, Tab
 
 ## Rahmen-Bausteine
 
-Wo die Dateien liegen, legt `/architecture` für PROJ-2 fest. Kein Feature baut eine eigene Navigation.
+Festgelegt in PROJ-2 `design.md`. Kein Feature baut eine eigene Navigation. Hauptseiten (mit Tab-Leiste und Leiste der aktiven Session) liegen im Unterbereich `src/app/(app)/(main)/`, Unterseiten (Detailansichten, Formulare) daneben unter `src/app/(app)/` und haben keine Tab-Leiste.
 
 | Baustein | Datei | Zweck |
 |----------|-------|-------|
-| AppBar | _festgelegt in PROJ-2 `design.md`_ | Kopfzeile, groß (Hauptseiten) und kompakt (Unterseiten) |
-| TabBar | _festgelegt in PROJ-2 `design.md`_ | Navigation Sessions · Start · Konto |
-| ActiveSessionBar | _festgelegt in PROJ-2 `design.md`_ | Schwebende Leiste der laufenden Session mit „Fang eintragen“ |
-| Layout der angemeldeten App | `src/app/(app)/layout.tsx`: angelegt von PROJ-1 mit der Anmeldeprüfung; PROJ-2 ergänzt Kopfzeile, Tab-Leiste und die Leiste der aktiven Session | Umschließt alle angemeldeten Seiten, prüft die Anmeldung |
+| AppBar | `src/components/shell/app-bar.tsx` (PROJ-2) | Kopfzeile, groß (Hauptseiten) und kompakt (Unterseiten) |
+| TabBar | `src/components/shell/tab-bar.tsx` (PROJ-2) | Navigation Sessions · Start · Konto |
+| ActiveSessionBar | `src/components/shell/active-session-bar.tsx` (PROJ-2) | Schwebende Leiste der laufenden Session mit „Fang eintragen“ |
+| Layout der angemeldeten App | `src/app/(app)/layout.tsx` (PROJ-1) | Umschließt alle angemeldeten Seiten, prüft die Anmeldung |
+| Layout der Hauptseiten | `src/app/(app)/(main)/layout.tsx` (PROJ-2) | Lädt die laufende Session, zeigt AppBar, Leiste der aktiven Session und Tab-Leiste für `/` und `/account` |
+| Formular-Baustein | aus `use-auth-action` (PROJ-1) verallgemeinert, festgelegt in PROJ-2 `design.md` | Gemeinsames Verhalten aller Formulare: POST per Server Action, Eingaben bleiben stehen, Button gesperrt, Notice „Keine Verbindung“ |
 | Layout für Abgemeldete | `src/app/(auth)/layout.tsx` (PROJ-1) | Wald-Hintergrund mit Schriftzug für Login, Registrierung und „Passwort vergessen“ |
 | Anmeldegrenze | `src/proxy.ts` (PROJ-1) | Erneuert die Anmeldung, leitet Abgemeldete zum Login und Angemeldete von den Login-Seiten weg |
 
