@@ -3,9 +3,11 @@ import {
   changePasswordSchema,
   emailSchema,
   existingPasswordSchema,
+  fieldErrors,
   loginSchema,
   newPasswordSchema,
   registerSchema,
+  utf8Length,
 } from './schemas'
 import { loginNoticeText, tooManyAttempts } from './messages'
 
@@ -40,11 +42,21 @@ describe('newPasswordSchema (AC-5)', () => {
     expect(newPasswordSchema.safeParse('aaaaaaaa').success).toBe(true)
   })
 
-  it('accepts 72 and rejects 73 characters', () => {
+  it('accepts 72 and rejects 73 simple characters (AC-34)', () => {
     expect(newPasswordSchema.safeParse('x'.repeat(72)).success).toBe(true)
     const r = newPasswordSchema.safeParse('x'.repeat(73))
     expect(r.success).toBe(false)
-    expect(r.error?.issues[0].message).toBe('Das Passwort darf höchstens 72 Zeichen haben.')
+    expect(r.error?.issues[0].message).toBe(
+      'Das Passwort ist zu lang. Erlaubt sind 72 Zeichen, Umlaute und Emojis zählen mehrfach.',
+    )
+  })
+
+  it('counts bytes, not characters: umlauts twice, emojis four times (AC-34)', () => {
+    expect(newPasswordSchema.safeParse('ä'.repeat(36)).success).toBe(true) // 72 bytes
+    expect(newPasswordSchema.safeParse('ä'.repeat(37)).success).toBe(false) // 74 bytes, 37 characters
+    expect(newPasswordSchema.safeParse('🎣'.repeat(18)).success).toBe(true) // 72 bytes
+    expect(newPasswordSchema.safeParse(`${'🎣'.repeat(18)}x`).success).toBe(false) // 73 bytes
+    expect(utf8Length('ä🎣x')).toBe(7)
   })
 
   it('does not trim spaces — they are part of the password', () => {
@@ -61,6 +73,28 @@ describe('existingPasswordSchema', () => {
     const r = existingPasswordSchema.safeParse('')
     expect(r.success).toBe(false)
     expect(r.error?.issues[0].message).toBe('Bitte gib dein Passwort ein.')
+  })
+
+  it('has no upper limit — an overlong password is left to the login brake', () => {
+    expect(existingPasswordSchema.safeParse('ä'.repeat(100)).success).toBe(true)
+  })
+})
+
+describe('broken requests (BUG-8)', () => {
+  it('answer with the general German message instead of the Zod default', () => {
+    for (const input of [null, undefined, [], 'text', 42]) {
+      const r = loginSchema.safeParse(input)
+      expect(r.success).toBe(false)
+      expect(fieldErrors(r.error!)).toEqual({ form: 'Bitte prüfe deine Eingaben.' })
+    }
+  })
+
+  it('keep the German field message for a field of the wrong type', () => {
+    const r = registerSchema.safeParse({ email: 42, password: ['x'] })
+    expect(fieldErrors(r.error!)).toEqual({
+      email: 'Bitte gib eine gültige E-Mail-Adresse ein.',
+      password: 'Das Passwort muss mindestens 8 Zeichen haben.',
+    })
   })
 })
 

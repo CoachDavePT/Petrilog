@@ -4,8 +4,13 @@ import { z } from 'zod'
 import { MESSAGES } from './messages'
 
 export const PASSWORD_MIN = 8
-export const PASSWORD_MAX = 72 // bcrypt limit
+/** bcrypt hashes at most 72 bytes of UTF-8 — umlauts count 2, emojis 4 (AC-34). */
+export const PASSWORD_MAX_BYTES = 72
 export const EMAIL_MAX = 254
+
+export function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).length
+}
 
 /** Trimmed, lower-cased, valid address (EC-7). */
 export const emailSchema = z
@@ -15,17 +20,19 @@ export const emailSchema = z
   .max(EMAIL_MAX, { error: MESSAGES.emailInvalid })
   .pipe(z.email({ error: MESSAGES.emailInvalid }))
 
-/** A password being set: 8–72 characters, no character classes, nothing trimmed. */
+/** A password being set: at least 8 characters, at most 72 bytes, no character classes, nothing trimmed. */
 export const newPasswordSchema = z
   .string({ error: MESSAGES.passwordTooShort })
   .min(PASSWORD_MIN, { error: MESSAGES.passwordTooShort })
-  .max(PASSWORD_MAX, { error: MESSAGES.passwordTooLong })
+  .refine((value) => utf8Length(value) <= PASSWORD_MAX_BYTES, { error: MESSAGES.passwordTooLong })
 
-/** A password being checked: required only — a length hint would leak something about it. */
+/**
+ * A password being checked: required only — a length hint would leak something about it. An overlong
+ * one is not rejected here: it goes through the login brake and counts as a failure (password-check.ts).
+ */
 export const existingPasswordSchema = z
   .string({ error: MESSAGES.passwordRequired })
   .min(1, { error: MESSAGES.passwordRequired })
-  .max(PASSWORD_MAX, { error: MESSAGES.invalidCredentials })
 
 export const loginSchema = z.object({ email: emailSchema, password: existingPasswordSchema })
 export const registerSchema = z.object({ email: emailSchema, password: newPasswordSchema })
@@ -47,11 +54,16 @@ export type DeleteAccountInput = z.input<typeof deleteAccountSchema>
 /** Field errors keyed by field name — the shape Server Actions return to the forms. */
 export type FieldErrors = Partial<Record<string, string>>
 
+/**
+ * A broken request (no object, a list …) fails at the root, where Zod only has its English default
+ * text — that becomes the general German message under `form` instead.
+ */
 export function fieldErrors(error: z.ZodError): FieldErrors {
   const out: FieldErrors = {}
   for (const issue of error.issues) {
-    const key = String(issue.path[0] ?? 'form')
-    if (!out[key]) out[key] = issue.message
+    const root = issue.path.length === 0
+    const key = root ? 'form' : String(issue.path[0])
+    if (!out[key]) out[key] = root ? MESSAGES.invalidInput : issue.message
   }
   return out
 }

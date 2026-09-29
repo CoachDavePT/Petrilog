@@ -1,14 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  allowMailRequest,
   allowSignup,
   beginLoginAttempt,
+  claimMailRequest,
   finishLoginAttempt,
+  supabaseThrottleStore,
   type ThrottleOutcome,
   type ThrottleQuery,
   type ThrottleStore,
 } from './throttle'
-import { clientIp } from './client-ip'
 import { atLeast } from './min-duration'
 
 type Row = {
@@ -50,6 +51,9 @@ function memoryStore() {
         rows.findIndex((r) => r.id === id),
         1,
       )
+    },
+    async claimMail() {
+      throw new Error('decided by claim_mail_request in the database — not part of these tests')
     },
   }
   return { store, rows }
@@ -107,6 +111,46 @@ describe('login brake per address (AC-23)', () => {
   })
 })
 
+describe('waiting time in the lock message (AC-23, BUG-5)', () => {
+  it('ignores checks still in flight: a lock only from a parallel burst promises 1 minute', async () => {
+    const { store } = memoryStore()
+    const burst = await Promise.all(
+      Array.from({ length: 10 }, () => beginLoginAttempt(store, { email: 'a@b.de', ip: '10.0.0.1' }, at(0))),
+    )
+    const refused = burst.filter((r) => !r.ok)
+    expect(refused.length).toBeGreaterThan(0)
+    for (const r of refused) expect(r).toEqual({ ok: false, retryMinutes: 1 })
+  })
+
+  it('runs from the newest real failure, not from a newer check still in flight', async () => {
+    const { store } = memoryStore()
+    for (let i = 0; i < 4; i++) await fail(store, 'a@b.de', '10.0.0.1', at(0))
+    const inFlight = await beginLoginAttempt(store, { email: 'a@b.de', ip: '10.0.0.1' }, at(8))
+    expect(inFlight.ok).toBe(true) // still pending — counts toward the lock, but is no failure
+    expect(await beginLoginAttempt(store, { email: 'a@b.de', ip: '10.0.0.1' }, at(10))).toEqual({
+      ok: false,
+      retryMinutes: 5,
+    })
+  })
+
+  it('never promises more than 15 minutes, even for a failure stamped in the future', async () => {
+    const { store } = memoryStore()
+    for (let i = 0; i < 5; i++) await fail(store, 'a@b.de', '10.0.0.1', at(2)) // clock ahead of ours
+    expect(await beginLoginAttempt(store, { email: 'a@b.de', ip: '10.0.0.1' }, at(0))).toEqual({
+      ok: false,
+      retryMinutes: 15,
+    })
+  })
+
+  it('takes the longer wait when address and IP are both locked', async () => {
+    const { store } = memoryStore()
+    for (let i = 0; i < 20; i++) await fail(store, `u${i}@b.de`, '1.2.3.4', at(0))
+    for (let i = 0; i < 5; i++) await fail(store, 'a@b.de', '9.9.9.9', at(6))
+    const r = await beginLoginAttempt(store, { email: 'a@b.de', ip: '1.2.3.4' }, at(7))
+    expect(r).toEqual({ ok: false, retryMinutes: 14 })
+  })
+})
+
 describe('login brake per IP (AC-24)', () => {
   it('blocks the 21st attempt from one IP across different addresses', async () => {
     const { store } = memoryStore()
@@ -117,20 +161,31 @@ describe('login brake per IP (AC-24)', () => {
   })
 })
 
-describe('mail limit (AC-25)', () => {
-  it('allows 3 mails per address and hour, then blocks — whether or not the account exists', async () => {
-    const { store } = memoryStore()
-    for (let i = 0; i < 3; i++) expect(await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(i))).toBe(true)
-    expect(await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(10))).toBe(false)
-    expect(await allowMailRequest(store, { email: 'other@y.de', ip: '1.1.1.1' }, at(10))).toBe(true)
-    expect(await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(61))).toBe(true)
+describe('mail limit (AC-25, EC-5) — decided by claim_mail_request', () => {
+  function rpcClient(answer: unknown) {
+    const rpc = vi.fn().mockResolvedValue({ data: answer, error: null })
+    return { db: { rpc } as unknown as SupabaseClient, rpc }
+  }
+
+  it('asks the database function with address and IP and returns its answer', async () => {
+    for (const answer of ['send', 'duplicate', 'limit'] as const) {
+      const { db, rpc } = rpcClient(answer)
+      expect(await claimMailRequest(supabaseThrottleStore(db), { email: 'a@b.de', ip: '2.2.2.2' })).toBe(answer)
+      expect(rpc).toHaveBeenCalledWith('claim_mail_request', { p_email: 'a@b.de', p_ip: '2.2.2.2' })
+    }
   })
 
-  it('does not let blocked requests extend the limit', async () => {
-    const { store } = memoryStore()
-    for (let i = 0; i < 3; i++) await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(0))
-    for (let i = 0; i < 5; i++) await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(30))
-    expect(await allowMailRequest(store, { email: 'x@y.de', ip: '1.1.1.1' }, at(60))).toBe(true)
+  it('refuses an answer outside the contract instead of sending a mail', async () => {
+    await expect(claimMailRequest(supabaseThrottleStore(rpcClient(true).db), { email: 'a@b.de', ip: 'x' })).rejects.toThrow(
+      'unexpected answer',
+    )
+  })
+
+  it('passes a database error on (the action shows the connection notice)', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'down' } })
+    await expect(
+      claimMailRequest(supabaseThrottleStore({ rpc } as unknown as SupabaseClient), { email: 'a@b.de', ip: 'x' }),
+    ).rejects.toEqual({ message: 'down' })
   })
 })
 
@@ -141,15 +196,6 @@ describe('signup limit (AC-26)', () => {
     expect(await allowSignup(store, { ip: '5.5.5.5' }, at(30))).toBe(false)
     expect(await allowSignup(store, { ip: '6.6.6.6' }, at(30))).toBe(true)
     expect(rows.every((r) => r.email === null)).toBe(true)
-  })
-})
-
-describe('clientIp', () => {
-  const h = (values: Record<string, string>) => ({ get: (n: string) => values[n] ?? null })
-  it('takes the first x-forwarded-for entry, then x-real-ip, else "unknown"', () => {
-    expect(clientIp(h({ 'x-forwarded-for': ' 203.0.113.7 , 10.0.0.1' }))).toBe('203.0.113.7')
-    expect(clientIp(h({ 'x-real-ip': '198.51.100.2' }))).toBe('198.51.100.2')
-    expect(clientIp(h({}))).toBe('unknown')
   })
 })
 

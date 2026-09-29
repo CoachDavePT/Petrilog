@@ -23,7 +23,10 @@ export const MESSAGES = {
   emailInvalid: 'Bitte gib eine gültige E-Mail-Adresse ein.',
   passwordRequired: 'Bitte gib dein Passwort ein.',
   passwordTooShort: 'Das Passwort muss mindestens 8 Zeichen haben.',
-  passwordTooLong: 'Das Passwort darf höchstens 72 Zeichen haben.',
+  passwordTooLong: 'Das Passwort ist zu lang. Erlaubt sind 72 Zeichen, Umlaute und Emojis zählen mehrfach.',
+  invalidInput: 'Bitte prüfe deine Eingaben.',
+  resetExpired:
+    'Die Zeit zum Festlegen ist abgelaufen. Ändere dein Passwort hier mit dem aktuellen Passwort oder melde dich ab und fordere über „Passwort vergessen“ einen neuen Link an.',
 } as const
 
 /** „Zu viele Versuche. Bitte versuche es in X Minuten erneut." — X is at least 1. */
@@ -41,9 +44,20 @@ export const LOGIN_NOTICES = {
 
 export type LoginNotice = keyof typeof LOGIN_NOTICES
 
-export function loginNoticeText(code: string | string[] | undefined): string | null {
+/** Notice codes the account page accepts in `?notice=` (EC-13) — anything else is ignored. */
+export const ACCOUNT_NOTICES = {
+  'reset-expired': MESSAGES.resetExpired,
+} as const
+
+function noticeText(notices: Record<string, string>, code: string | string[] | undefined): string | null {
   if (typeof code !== 'string') return null
-  return Object.prototype.hasOwnProperty.call(LOGIN_NOTICES, code)
-    ? LOGIN_NOTICES[code as LoginNotice]
-    : null
+  return Object.prototype.hasOwnProperty.call(notices, code) ? notices[code] : null
+}
+
+export function loginNoticeText(code: string | string[] | undefined): string | null {
+  return noticeText(LOGIN_NOTICES, code)
+}
+
+export function accountNoticeText(code: string | string[] | undefined): string | null {
+  return noticeText(ACCOUNT_NOTICES, code)
 }
