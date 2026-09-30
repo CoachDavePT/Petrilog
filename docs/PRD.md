@@ -28,9 +28,9 @@ Bewusst später kommen: Kartendarstellung (als nächstes Feature geplant), Stati
 - **Plattform:** Web-App, mobile-first, auf dem Smartphone am Wasser bedienbar. Oberfläche auf Deutsch, metrische Einheiten (cm, g, °C, hPa, km/h).
 - **Stack:** Next.js 16, TypeScript, Tailwind CSS und shadcn/ui, Zod.
 - **Backend:** Supabase (PostgreSQL, Auth), Free Plan.
-- Environment strategy: local — Supabase läuft während der Entwicklung per Docker. Ein gehostetes Projekt kommt erst bei einem späteren `/deploy` dazu.
-- Data region: eu-central-1 (Frankfurt) — verbindlich für ein späteres gehostetes Projekt, weil sich die Region nicht nachträglich ändern lässt.
-- Hosting: keines in dieser Version. Kein Deployment nötig, die App läuft lokal.
+- Environment strategy: local — Supabase läuft während der Entwicklung per Docker. Für die Abgabe kommt eine Supabase-Cloud-Instanz (Free Plan) dazu, auf die die Migrationen per `supabase db push` und die Auth-Einstellungen per `supabase config push` übertragen werden (Anleitung in `README.md`).
+- Data region: eu-central-1 (Frankfurt) — verbindlich für jedes gehostete Supabase-Projekt, weil sich die Region nicht nachträglich ändern lässt.
+- Hosting: keines in dieser Version. Die App läuft lokal (`npm run dev`) gegen die Supabase-Cloud-Instanz; abgegeben wird ein öffentliches GitHub-Repository. Vor einem öffentlichen Hosting gilt die Deploy-Sperre aus PROJ-1 (CAPTCHA).
 - **Externe Dienste:** Nur kostenlose. Open-Meteo braucht keinen API-Key.
 - **Secrets:** Keine im Repository. Supabase-Zugangsdaten stehen nur in `.env.local`, Platzhalter liegen in `.env.local.example`.
 - Data protection law: GDPR (EU/DE), DSG (CH)
