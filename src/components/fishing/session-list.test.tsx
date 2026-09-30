@@ -26,6 +26,7 @@ function item(n: number, overrides: Partial<SessionListItem> = {}): SessionListI
     endedAt: new Date(start.getTime() + 2 * 3_600_000).toISOString(),
     waterName: `Gewässer ${n}`,
     catchCount: n,
+    weatherState: { status: 'ok', requestedAt: start.toISOString(), attemptedAt: start.toISOString() },
     ...overrides,
   }
 }

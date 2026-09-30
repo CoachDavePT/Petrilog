@@ -207,6 +207,7 @@ describe('CatchForm — Fang bearbeiten', () => {
     positionSource: 'session',
     createdAt: '2026-09-12T13:20:00Z',
     updatedAt: '2026-09-12T13:20:00Z',
+    weatherState: { status: 'ok', requestedAt: '2026-09-12T13:20:00Z', attemptedAt: '2026-09-12T13:20:05Z' },
   }
 
   it('prefills the catch, shows its position and saves without asking for one (AC-27)', async () => {

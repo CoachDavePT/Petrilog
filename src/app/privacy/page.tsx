@@ -1,5 +1,5 @@
-// Privacy policy — placeholder based on docs/privacy.md (PROJ-1: AC-30, PROJ-2: AC-39). The legal text comes from a
-// lawyer or a reputable generator before the first hosted operation (spec → Out of Scope).
+// Privacy policy — placeholder based on docs/privacy.md (PROJ-1: AC-30, PROJ-2: AC-39, PROJ-3: AC-24). The legal
+// text comes from a lawyer or a reputable generator before the first hosted operation (spec → Out of Scope).
 import type { Metadata } from 'next'
 import { FormNotice } from '@/components/auth/form-notice'
 import { SimplePage } from '@/components/simple-page'
@@ -65,6 +65,26 @@ export default function PrivacyPage() {
         <p>
           Die Daten bleiben gespeichert, bis du den Eintrag, die Session oder dein Konto löschst. Mit einer Session
           löschen wir auch ihre Fänge.
+        </p>
+
+        <h2>Wetterdaten</h2>
+        <p>
+          Zu jeder Session (zum Start) und zu jedem Fang (zur Fangzeit) holen wir das Wetter beim Wetterdienst
+          Open-Meteo: Temperatur, Luftdruck, Wind, Bewölkung, Niederschlag und Wetterlage.
+        </p>
+        <ul>
+          <li>Dafür übermitteln wir nur die auf etwa 1 km gerundete Position und den Zeitpunkt.</li>
+          <li>
+            Die Anfrage kommt von unserem Server, nicht von deinem Gerät, also ohne deine IP-Adresse und ohne dein
+            Konto.
+          </li>
+        </ul>
+        <p>
+          Das Wetter speichern wir mit dem Eintrag, damit du später auswerten kannst, bei welchem Wetter du fängst
+          (Vertrag, Art. 6 Abs. 1 lit. b DSGVO). Nur du kannst es sehen.
+        </p>
+        <p>
+          Es wird zusammen mit dem Eintrag gelöscht, und auch dann, wenn du die Position eines Eintrags entfernst.
         </p>
 
         <h2>Deine Rechte</h2>
