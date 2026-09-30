@@ -126,3 +126,13 @@ Jedes AC und jedes EC aus `spec.md` hat mindestens eine Aufgabe:
 - **Nach Ebene 1** spielt `/build` die neue Migration in die lokale Datenbank ein (`supabase migration up`), bevor Ebene 2 dagegen geprüft wird.
 - **PROJ-1 wird mitgeprüft:** T4 und T6 fassen PROJ-1-Dateien an. Nach Ebene 1 müssen die Unit-Tests von PROJ-1 grün bleiben, und Login, Konto-Seite und Export müssen wie vorher funktionieren.
 - **Sub-Agenten:** Während `/build` läuft jede `[P]`-Aufgabe der aktiven Ebene in einem eigenen Sub-Agenten mit eigenem Git-Worktree. Danach führt der Haupt-Agent zusammen, prüft gegen die AC-IDs der Ebene und hakt hier ab. Sub-Agenten erklären sich nie selbst für fertig.
+
+## Runde 2: nach QA (2026-09-30)
+
+> Nach `/qa` (BUG-1 bis BUG-5 in `qa-report.md`) und `/refine PROJ-2` (AC-24, EC-6). Die Fixes sind klein und hängen zusammen, deshalb wurden sie ohne Parallelisierung nacheinander gebaut.
+
+- [x] T19  Neue Migration: Fangzeit einer laufenden Session höchstens Start + 48 h; „beendet → läuft“ abgelehnt  · files: supabase/migrations/20260930140000_catch_window_and_no_reopen.sql  · → AC-24, EC-6, EC-13
+- [x] T20  App-Prüfung der Fangzeit mit 48-h-Grenze, Unit-Test  · files: src/lib/fishing/schemas.ts, src/lib/fishing/schemas.test.ts  · → AC-24, EC-6
+- [x] T21  Ablehnungen beim Beenden nennen die erlaubte Spanne, Tests angepasst  · files: src/lib/fishing/messages.ts, src/lib/fishing/actions/sessions.ts, src/lib/fishing/actions/sessions.test.ts  · → AC-12
+- [x] T22  Wiederholtes Löschen eines Fangs führt zur Session zurück, Test  · files: src/lib/fishing/actions/catches.ts, src/lib/fishing/actions/catches.test.ts, src/components/fishing/delete-catch-dialog.tsx, src/app/(app)/sessions/[id]/catches/[catchId]/page.tsx  · → AC-28, EC-5
+- [x] T23  Formular-Tests gegen Timing unter Last härten: Klicks nach einem vorigen Versuch warten, bis der Button wieder bereit ist (fielen unter voller Suite gelegentlich aus, einzeln nie)  · files: src/components/fishing/end-session-sheet.test.tsx, src/components/fishing/session-forms.test.tsx  · → AC-10, AC-12, AC-14, EC-3

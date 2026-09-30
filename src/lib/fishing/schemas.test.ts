@@ -384,6 +384,18 @@ describe('checkCatchTime (AC-24, EC-4, EC-10)', () => {
     })
   })
 
+  it('a running session takes no catch later than 48 hours after its start (BUG-1, AC-24)', () => {
+    const late = at('2026-09-15T10:00:00Z') // forgotten session, running for ~68 h
+    const limit = at('2026-09-14T14:05:00Z') // start + 48 h
+    expect(checkCatchTime(limit, running, late)).toEqual({ ok: true })
+    expect(checkCatchTime(new Date(limit.getTime() + MIN), running, late)).toEqual({
+      ok: false,
+      from: running.startedAt,
+      to: limit,
+      running: true,
+    })
+  })
+
   it('finds the earliest catch left outside by new times (AC-18)', () => {
     const catches = [
       { caughtAt: at('2026-09-12T18:00:00Z'), species: 'pike' },

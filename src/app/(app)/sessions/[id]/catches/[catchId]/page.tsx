@@ -29,7 +29,7 @@ export default async function EditCatchPage({ params }: { params: Promise<{ id: 
         variant="compact"
         title="Fang bearbeiten"
         nav={{ href: `/sessions/${session.id}`, kind: 'close' }}
-        action={<DeleteCatchDialog catchId={entry.id} />}
+        action={<DeleteCatchDialog catchId={entry.id} sessionId={found.session.id} />}
       />
       <main className="mx-auto w-full max-w-[440px] px-5 pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] pt-4">
         <CatchForm

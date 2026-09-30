@@ -549,6 +549,14 @@ describe('deleteCatch (AC-28, AC-40)', () => {
     expect(revalidatePath).toHaveBeenCalledWith('/', 'layout')
   })
 
+  it('leads a repeated delete back to its session while the session exists (BUG-5)', async () => {
+    const input = { id: C_OWN, sessionId: S_END }
+    expect(await run(() => deleteCatch(input))).toEqual({ redirect: `/sessions/${S_END}?notice=catch-deleted` })
+    expect(await run(() => deleteCatch(input))).toEqual({ redirect: `/sessions/${S_END}?notice=catch-deleted` })
+    // a foreign session named in the request is still „gone" — nothing about it is revealed
+    expect(await run(() => deleteCatch({ id: C_OWN, sessionId: S_FOREIGN }))).toEqual(GONE)
+  })
+
   it('treats a missing or foreign catch as gone and deletes nothing', async () => {
     expect(await run(() => deleteCatch({ id: C_NEW }))).toEqual(GONE)
     expect(await run(() => deleteCatch({ id: C_FOREIGN }))).toEqual(GONE)

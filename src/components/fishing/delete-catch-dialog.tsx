@@ -23,11 +23,13 @@ import { MESSAGES } from '@/lib/fishing/messages'
 
 type DeleteCatchDialogProps = {
   catchId: string
+  /** The session the catch belongs to — a repeated delete leads back there. */
+  sessionId?: string
   /** Replaces the default icon button (Trash, `aria-label="Fang löschen"`). Must accept a ref (asChild). */
   trigger?: ReactNode
 }
 
-export function DeleteCatchDialog({ catchId, trigger }: DeleteCatchDialogProps) {
+export function DeleteCatchDialog({ catchId, sessionId, trigger }: DeleteCatchDialogProps) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +38,7 @@ export function DeleteCatchDialog({ catchId, trigger }: DeleteCatchDialogProps) 
     startTransition(async () => {
       setError(null)
       try {
-        const result = await deleteCatch({ id: catchId })
+        const result = await deleteCatch({ id: catchId, sessionId })
         // No result: the action redirected — keep the dialog locked until the new page shows.
         if (result && result.status === 'error') setError(result.message ?? MESSAGES.network)
       } catch {

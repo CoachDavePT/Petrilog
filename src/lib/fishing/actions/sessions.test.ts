@@ -524,15 +524,15 @@ describe('endSession (AC-10, AC-12, EC-5, EC-6, EC-13)', () => {
     const custom = (endedAt: string) => endSession({ id: ID, mode: 'custom', endedAt })
     expect(await custom('2026-09-12T14:00:00+02:00')).toEqual({
       status: 'error',
-      fieldErrors: { endedAt: 'Das Ende muss nach dem Start liegen.' },
+      fieldErrors: { endedAt: 'Das Ende muss nach dem Start liegen. Möglich ist ein Ende zwischen 12.09., 17:20 und 12.09., 18:00.' },
     })
     expect(await custom('2026-09-12T18:10:00+02:00')).toEqual({
       status: 'error',
-      fieldErrors: { endedAt: 'Dieser Zeitpunkt liegt in der Zukunft.' },
+      fieldErrors: { endedAt: 'Dieser Zeitpunkt liegt in der Zukunft. Möglich ist ein Ende zwischen 12.09., 17:20 und 12.09., 18:00.' },
     })
     expect(await custom('2026-09-12T17:00:00+02:00')).toEqual({
       status: 'error',
-      fieldErrors: { endedAt: 'Der Fang um 17:20 (Hecht) läge außerhalb der Session.' },
+      fieldErrors: { endedAt: 'Der Fang um 17:20 (Hecht) läge außerhalb der Session. Möglich ist ein Ende zwischen 12.09., 17:20 und 12.09., 18:00.' },
     })
     expect(ofKind('update')).toHaveLength(0)
   })
@@ -541,7 +541,8 @@ describe('endSession (AC-10, AC-12, EC-5, EC-6, EC-13)', () => {
     scenario({ own: running('2026-09-10T12:05:00Z') })
     expect(await endSession({ id: ID, mode: 'now' })).toEqual({
       status: 'error',
-      message: 'Eine Session dauert höchstens 48 Stunden (bis 12.09., 14:05).',
+      message:
+        'Eine Session dauert höchstens 48 Stunden (bis 12.09., 14:05). Möglich ist ein Ende zwischen 10.09., 14:06 und 12.09., 14:05.',
     })
     expect(ofKind('update')).toHaveLength(0)
   })
@@ -571,7 +572,9 @@ describe('endSession (AC-10, AC-12, EC-5, EC-6, EC-13)', () => {
     }
     expect(await endSession({ id: ID, mode: 'custom', endedAt: '2026-09-12T17:30:00+02:00' })).toEqual({
       status: 'error',
-      fieldErrors: { endedAt: 'Der Fang um 18:00 (Barsch) läge außerhalb der Session.' },
+      fieldErrors: {
+        endedAt: 'Der Fang um 18:00 (Barsch) läge außerhalb der Session. Möglich ist ein Ende zwischen 12.09., 14:06 und 12.09., 18:00.',
+      },
     })
   })
 

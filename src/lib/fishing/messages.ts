@@ -77,6 +77,11 @@ export function sessionTooLong(latestEnd: string): string {
   return `Eine Session dauert höchstens 48 Stunden (bis ${latestEnd}).`
 }
 
+/** AC-12: the span an end may lie in — „Möglich ist ein Ende zwischen 12.09., 14:06 und 12.09., 18:40." */
+export function endAllowedSpan(from: string, to: string): string {
+  return `Möglich ist ein Ende zwischen ${from} und ${to}.`
+}
+
 /** „Session beendet · 1:42 h" — `duration` is already formatted, unit included. Without it: „Session beendet". */
 export function sessionEndedNotice(duration?: string): string {
   return duration ? `${MESSAGES.sessionEnded} · ${duration}` : MESSAGES.sessionEnded

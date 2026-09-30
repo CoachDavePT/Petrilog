@@ -29,6 +29,12 @@ const NETWORK = 'Keine Verbindung. Bitte versuche es erneut.'
 const offline = () => Promise.reject(new TypeError('Failed to fetch'))
 
 const submitButton = (name: RegExp | string) => screen.getByRole('button', { name })
+/** Waits until the button is back (label and enabled) — see end-session-sheet.test.tsx. */
+const readySubmit = async (name: RegExp | string) => {
+  const button = await screen.findByRole('button', { name })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
 const field = (label: string) => screen.getByLabelText(label)
 const type = (element: HTMLElement, value: string) => fireEvent.change(element, { target: { value } })
 
@@ -54,12 +60,12 @@ describe('SessionStartForm', () => {
     expect(location.requestPosition).not.toHaveBeenCalled()
 
     type(field('Gewässername (optional)'), 'Bodden')
-    fireEvent.click(submitButton('Starten'))
+    fireEvent.click(await readySubmit('Starten'))
     await screen.findByText(NETWORK)
     expect(location.requestPosition).toHaveBeenCalledTimes(1)
     expect(field('Gewässername (optional)')).toHaveValue('Bodden')
 
-    fireEvent.click(submitButton('Starten'))
+    fireEvent.click(await readySubmit('Starten'))
     await waitFor(() => expect(actions.startSession).toHaveBeenCalledTimes(2))
     expect(location.requestPosition).toHaveBeenCalledTimes(1)
     const [first, second] = actions.startSession.mock.calls.map(([input]) => input)
@@ -71,9 +77,9 @@ describe('SessionStartForm', () => {
     location.requestPosition.mockResolvedValue(null)
     actions.startSession.mockImplementationOnce(offline).mockResolvedValue(undefined)
     render(<SessionStartForm suggestions={[]} />)
-    fireEvent.click(submitButton('Starten'))
+    fireEvent.click(await readySubmit('Starten'))
     await screen.findByText(NETWORK)
-    fireEvent.click(submitButton('Starten'))
+    fireEvent.click(await readySubmit('Starten'))
     await waitFor(() => expect(actions.startSession).toHaveBeenCalledTimes(2))
     expect(location.requestPosition).toHaveBeenCalledTimes(1)
     expect(actions.startSession.mock.calls[1][0].position).toBeNull()
@@ -82,7 +88,7 @@ describe('SessionStartForm', () => {
   it('checks the length rules in the browser and sends nothing (AC-7)', async () => {
     render(<SessionStartForm suggestions={[]} />)
     type(field('Gewässername (optional)'), 'x'.repeat(81))
-    fireEvent.click(submitButton('Starten'))
+    fireEvent.click(await readySubmit('Starten'))
     expect(await screen.findByText('Höchstens 80 Zeichen.')).toBeInTheDocument()
     expect(location.requestPosition).not.toHaveBeenCalled()
     expect(actions.startSession).not.toHaveBeenCalled()
@@ -102,7 +108,7 @@ describe('SessionBackfillForm', () => {
     fillTimes()
     // The start date was copied into the empty end date.
     expect(field('Ende: Datum')).toHaveValue('2026-09-12')
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     await waitFor(() => expect(actions.backfillSession).toHaveBeenCalledTimes(1))
     expect(location.requestPosition).not.toHaveBeenCalled()
     expect(actions.backfillSession.mock.calls[0][0]).toEqual({
@@ -122,9 +128,9 @@ describe('SessionBackfillForm', () => {
     render(<SessionBackfillForm suggestions={[]} />)
     fillTimes()
     fireEvent.click(screen.getByRole('switch'))
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     await screen.findByText(NETWORK)
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     await waitFor(() => expect(actions.backfillSession).toHaveBeenCalledTimes(2))
     expect(location.requestPosition).toHaveBeenCalledTimes(1)
     const [first, second] = actions.backfillSession.mock.calls.map(([input]) => input)
@@ -137,14 +143,14 @@ describe('SessionBackfillForm', () => {
     type(field('Start: Datum'), '2026-09-12')
     type(field('Start: Uhrzeit'), '16:00')
     type(field('Ende: Uhrzeit'), '15:00')
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     expect(await screen.findByText('Das Ende muss nach dem Start liegen.')).toBeInTheDocument()
     expect(actions.backfillSession).not.toHaveBeenCalled()
   })
 
   it('requires both times', async () => {
     render(<SessionBackfillForm suggestions={[]} />)
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     expect(await screen.findAllByText('Bitte gib Datum und Uhrzeit ein.')).toHaveLength(2)
     expect(actions.backfillSession).not.toHaveBeenCalled()
   })
@@ -157,7 +163,7 @@ describe('SessionBackfillForm', () => {
     })
     render(<SessionBackfillForm suggestions={[]} />)
     fillTimes()
-    fireEvent.click(submitButton('Session speichern'))
+    fireEvent.click(await readySubmit('Session speichern'))
     expect(await screen.findByText('Dieser Zeitpunkt liegt in der Zukunft.')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Überschneidet sich mit deiner Session vom 12.09., 16:00–20:00.')
     expect(field('Ende: Uhrzeit')).toHaveValue('20:00')
@@ -181,7 +187,7 @@ describe('SessionEditForm', () => {
     expect(field('Gewässername (optional)')).toHaveValue('Bodden')
     expect(field('Start: Uhrzeit')).toHaveValue('16:00')
     expect(field('Ende: Uhrzeit')).toHaveValue('20:00')
-    fireEvent.click(submitButton('Speichern'))
+    fireEvent.click(await readySubmit('Speichern'))
     await waitFor(() => expect(actions.updateSession).toHaveBeenCalledTimes(1))
     expect(actions.updateSession.mock.calls[0][0]).toEqual({
       id: ended.id,
@@ -199,7 +205,7 @@ describe('SessionEditForm', () => {
     expect(screen.queryByLabelText('Ende: Datum')).not.toBeInTheDocument()
     expect(screen.getByText('Ohne Position')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Position entfernen' })).not.toBeInTheDocument()
-    fireEvent.click(submitButton('Speichern'))
+    fireEvent.click(await readySubmit('Speichern'))
     await waitFor(() => expect(actions.updateSession).toHaveBeenCalledTimes(1))
     expect(actions.updateSession.mock.calls[0][0].endedAt).toBeUndefined()
   })

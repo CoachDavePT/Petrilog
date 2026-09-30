@@ -410,3 +410,20 @@ Keine. PROJ-2 braucht weder Einstellungen in Supabase noch beim Hoster.
 - **Detailansicht:** Die Dauer im Kopf wird beim Laden berechnet und tickt nicht. Die Kennzahlen-Kacheln und die Leiste der aktiven Session ticken minütlich. Ab 12 h Laufzeit hat die Seite zwei Einstiege in dasselbe „Session beenden“-Sheet (Hinweis und Button unten).
 - **Genauigkeit über 100.000 m** wird auf 100.000 gekappt, statt die Position zu verwerfen.
 - **Live geprüft** gegen die lokale Supabase und die laufende App: Abfrageformen (verknüpfte Fänge, Fanganzahl, Sortierung, Überschneidungsfilter), alle Server Actions über HTTP mit zwei Nutzern (31 Prüfungen), alle Seiten in den Zuständen „leer“, „läuft“, „über 12 h“, „mit Fängen“, fremder Nutzer (404) und ohne Anmeldung (Login).
+
+## Runde 2 nach QA (`/refine` + `/build`, 2026-09-30)
+
+Grundlage ist `qa-report.md` (BUG-1 bis BUG-5). Der Vertrag wurde nur für BUG-1 geändert (AC-24, EC-6), alles andere sind Fixes gegen den bestehenden Vertrag.
+
+- **BUG-1 (AC-24, EC-6):**
+  - Eine laufende Session nimmt Fänge nur bis Start + 48 Stunden an, zusätzlich zur Grenze „jetzt + 2 Minuten“. So bleibt jede vergessene Session beendbar.
+  - App-Prüfung: `checkCatchTime` in `src/lib/fishing/schemas.ts`.
+  - Garantie in der Datenbank: neue Migration `20260930140000_catch_window_and_no_reopen.sql`. Sie ersetzt die beiden Trigger-Funktionen der Fangzeit-Garantie, die frühere Migration bleibt unverändert.
+- **BUG-2 (AC-12):** Jede Ablehnung beim Beenden nennt die erlaubte Spanne: „Möglich ist ein Ende zwischen … und ….“ Sie reicht vom Start + 1 Minute bzw. dem letzten Fang bis zum früheren Wert von „jetzt“ und Start + 48 h.
+- **BUG-3 (EC-13):** Die Datenbank lehnt „beendet → läuft“ ab (`session_already_ended`), auch bei einem direkten Aufruf der Datenbank-Schnittstelle. Damit gilt die Zusage aus dem Datenmodell jetzt auch in der Datenbank.
+- **BUG-5:** `deleteCatch` bekommt die Session-Kennung des Formulars mit. Ist der Fang schon gelöscht und die Session noch da, geht es wie beim ersten Löschen zur Session mit „Fang gelöscht“. Sonst bleibt es bei `session-gone`.
+- **BUG-4, bewusst nicht geändert:** siehe Technische Entscheidungen unten.
+
+| Entscheidung | Begründung | Alternative | Nachteil | Datum |
+| --- | --- | --- | --- | --- |
+| `sessionWasRunning` bleibt eine Angabe des Formulars (QA BUG-4 nicht behoben) | Ob das Formular für eine laufende Session geöffnet wurde, weiß nur der Browser. Eine gefälschte Angabe verfälscht höchstens die Herkunft der **eigenen** Position („GPS“ statt „von der Session“). Das kann jeder Nutzer ohnehin, weil er seine eigenen Zeilen über die Datenbank-Schnittstelle schreiben darf (Row Level Security „nur eigene Zeilen“). | Das Flag nur annehmen, wenn die Session erst kurz vor dem Speichern beendet wurde | Die Herkunftsangabe ist eine Ehrlichkeitsangabe für den Nutzer selbst, keine Sicherheitsgrenze. | 2026-09-30 |

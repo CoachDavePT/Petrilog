@@ -324,7 +324,9 @@ export type CatchWindowCheck =
 
 /**
  * Catch time (AC-24, EC-4, EC-10): between start and end of the session, both included. A running
- * session ends at „now + 2 minutes". Build the message with `catchTimeRange(format(from), format(to))`.
+ * session ends at „now + 2 minutes", but never later than 48 hours after its start (BUG-1: otherwise a
+ * forgotten session could not be ended any more). Build the message with
+ * `catchTimeRange(format(from), format(to))`.
  */
 export function checkCatchTime(
   caughtAt: Date,
@@ -332,10 +334,12 @@ export function checkCatchTime(
   now: Date,
 ): CatchWindowCheck {
   const running = session.endedAt === null
-  const upper = running ? now.getTime() + FUTURE_TOLERANCE_MS : session.endedAt!.getTime()
+  const maxEnd = session.startedAt.getTime() + SESSION_MAX_MS
+  const upper = running ? Math.min(now.getTime() + FUTURE_TOLERANCE_MS, maxEnd) : session.endedAt!.getTime()
   const t = caughtAt.getTime()
   if (t >= session.startedAt.getTime() && t <= upper) return { ok: true }
-  return { ok: false, from: session.startedAt, to: running ? truncateToMinute(now) : session.endedAt!, running }
+  const to = running ? new Date(Math.min(truncateToMinute(now).getTime(), maxEnd)) : session.endedAt!
+  return { ok: false, from: session.startedAt, to, running }
 }
 
 /**

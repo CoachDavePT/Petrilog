@@ -18,7 +18,7 @@ import { requireUser } from '@/lib/auth/require-user'
 import { createClient } from '@/lib/supabase/server'
 import { mapDbError } from '../db-errors'
 import { formatShortDate, formatShortDateTime, formatTime, formatEndTime, isSameBerlinDay } from '../format'
-import { catchOutsideSession, MESSAGES, overlapsRunningSession, overlapsSession } from '../messages'
+import { catchOutsideSession, endAllowedSpan, MESSAGES, overlapsRunningSession, overlapsSession } from '../messages'
 import {
   backfillSessionSchema,
   editSessionSchema,
@@ -26,6 +26,8 @@ import {
   firstCatchOutside,
   idSchema,
   parseInput,
+  SESSION_MAX_MS,
+  SESSION_MIN_MS,
   sessionTimeErrors,
   startSessionSchema,
   truncateToMinute,
@@ -354,8 +356,6 @@ export async function endSession(input: EndSessionInput): Promise<SessionActionR
   if (!parsed.ok) return invalid(parsed.fieldErrors)
   const data = parsed.data
   const now = new Date()
-  const problem = (message: string) =>
-    data.mode === 'custom' ? invalid({ endedAt: message }) : failure(message)
 
   return run('end-session', async () => {
     const supabase = await createClient()
@@ -365,6 +365,16 @@ export async function endSession(input: EndSessionInput): Promise<SessionActionR
 
     const startedAt = new Date(session.started_at)
     const catches = await loadCatches(supabase, user.id, data.id)
+    // AC-12: every refusal names the span an end may lie in — from start + 1 min (or the last catch)
+    // to the earlier of now and start + 48 h.
+    const lastCatchAt = catches.at(-1)?.caughtAt
+    const spanFrom = new Date(Math.max(startedAt.getTime() + SESSION_MIN_MS, lastCatchAt?.getTime() ?? 0))
+    const spanTo = new Date(Math.min(truncateToMinute(now).getTime(), startedAt.getTime() + SESSION_MAX_MS))
+    const span = endAllowedSpan(formatShortDateTime(spanFrom), formatShortDateTime(spanTo))
+    const problem = (message: string) => {
+      const text = `${message} ${span}`
+      return data.mode === 'custom' ? invalid({ endedAt: text }) : failure(text)
+    }
     let endedAt: Date
     if (data.mode === 'now') endedAt = truncateToMinute(now)
     else if (data.mode === 'last-catch') {

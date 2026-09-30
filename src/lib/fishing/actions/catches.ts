@@ -41,8 +41,11 @@ export type CatchActionResult =
 export type CreateCatchActionInput = CreateCatchInput & { sessionWasRunning?: boolean }
 export type EditCatchActionInput = EditCatchInput
 export type CatchIdInput = { id: string }
+/** `sessionId`: the session the form belongs to — a repeated delete then leads back there (BUG-5). */
+export type DeleteCatchInput = CatchIdInput & { sessionId?: string }
 
 const idOnlySchema = z.object({ id: idSchema })
+const deleteCatchSchema = z.object({ id: idSchema, sessionId: idSchema.optional() })
 
 const SESSION_GONE = '/?notice=session-gone'
 
@@ -348,9 +351,9 @@ async function updateCatchOutcome(
 }
 
 /** „Fang löschen" after the dialog (AC-28): final, nothing is kept (AC-40). → `/sessions/<id>?notice=catch-deleted`. */
-export async function deleteCatch(input: CatchIdInput): Promise<CatchActionResult> {
+export async function deleteCatch(input: DeleteCatchInput): Promise<CatchActionResult> {
   const user = await requireUser()
-  const parsed = parseInput(idOnlySchema, input)
+  const parsed = parseInput(deleteCatchSchema, input)
   if (!parsed.ok) return inputError(parsed.fieldErrors)
 
   let outcome: Outcome
@@ -365,7 +368,11 @@ export async function deleteCatch(input: CatchIdInput): Promise<CatchActionResul
     if (error) throw error
     const row = Array.isArray(data) ? (data[0] as { session_id: string } | undefined) : undefined
     if (!row) {
-      outcome = { redirect: SESSION_GONE }
+      // Already deleted (a second tap, another device): if its session is still there, the result the
+      // user wanted holds — back to the session, not „Diese Session gibt es nicht mehr." (BUG-5).
+      const sessionId = parsed.data.sessionId
+      const session = sessionId ? await loadSession(supabase, sessionId, user.id) : null
+      outcome = { redirect: session ? `/sessions/${session.id}?notice=catch-deleted` : SESSION_GONE }
     } else {
       revalidateFishingPages()
       outcome = { redirect: `/sessions/${row.session_id}?notice=catch-deleted` }

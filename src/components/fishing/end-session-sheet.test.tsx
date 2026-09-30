@@ -26,6 +26,13 @@ function renderSheet({ startedHoursAgo, lastCatchAt }: { startedHoursAgo: number
 
 const radio = (name: RegExp) => screen.getByRole('radio', { name })
 const submitButton = () => screen.getByRole('button', { name: 'Beenden' })
+/** Waits until the button is back (label and enabled) — a click right after a previous attempt would
+ * otherwise hit the pending state and do nothing on a busy machine. */
+const readySubmit = async () => {
+  const button = await screen.findByRole('button', { name: 'Beenden' })
+  await waitFor(() => expect(button).toBeEnabled())
+  return button
+}
 
 beforeAll(() => {
   // Radix measures the radio items; jsdom has no ResizeObserver
@@ -51,7 +58,7 @@ describe('EndSessionSheet', () => {
     expect(radio(/^Jetzt/)).toHaveAttribute('aria-checked', 'true')
     expect(radio(/^Zeit des letzten Fangs/)).toHaveAttribute('aria-checked', 'false')
 
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
     await waitFor(() => expect(endSession).toHaveBeenCalledWith({ id: ID, mode: 'now' }))
   })
 
@@ -67,7 +74,7 @@ describe('EndSessionSheet', () => {
     expect(radio(/^Jetzt/)).toHaveAttribute('aria-checked', 'false')
     expect(radio(/^Zeit des letzten Fangs/)).toHaveAttribute('aria-checked', 'true')
 
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
     await waitFor(() => expect(endSession).toHaveBeenCalledWith({ id: ID, mode: 'last-catch' }))
   })
 
@@ -85,7 +92,7 @@ describe('EndSessionSheet', () => {
     fireEvent.click(radio(/^Eigene Uhrzeit/))
     fireEvent.change(await screen.findByLabelText('Datum'), { target: { value: '2026-09-14' } })
     fireEvent.change(screen.getByLabelText('Uhrzeit'), { target: { value: '13:30' } })
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
 
     await waitFor(() =>
       expect(endSession).toHaveBeenCalledWith({ id: ID, mode: 'custom', endedAt: '2026-09-14T13:30:00+02:00' }),
@@ -97,7 +104,7 @@ describe('EndSessionSheet', () => {
 
     fireEvent.click(radio(/^Eigene Uhrzeit/))
     fireEvent.change(await screen.findByLabelText('Uhrzeit'), { target: { value: '' } })
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
 
     expect(await screen.findByText('Bitte gib Datum und Uhrzeit ein.')).toBeInTheDocument()
     expect(endSession).not.toHaveBeenCalled()
@@ -110,7 +117,7 @@ describe('EndSessionSheet', () => {
     fireEvent.click(radio(/^Eigene Uhrzeit/))
     fireEvent.change(await screen.findByLabelText('Datum'), { target: { value: '2026-09-14' } })
     fireEvent.change(screen.getByLabelText('Uhrzeit'), { target: { value: '08:00' } })
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
 
     expect(await screen.findByText('Das Ende muss nach dem Start liegen.')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull() // at the field, not as a notice
@@ -120,11 +127,11 @@ describe('EndSessionSheet', () => {
     endSession.mockResolvedValueOnce({ status: 'error', message: 'Eine Session dauert höchstens 48 Stunden.' })
     renderSheet({ startedHoursAgo: 3, lastCatchAt: null })
 
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
     expect(await screen.findByRole('alert')).toHaveTextContent('Eine Session dauert höchstens 48 Stunden.')
 
     endSession.mockRejectedValueOnce(new Error('offline'))
-    fireEvent.click(submitButton())
+    fireEvent.click(await readySubmit())
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Keine Verbindung.'))
   })
 })
