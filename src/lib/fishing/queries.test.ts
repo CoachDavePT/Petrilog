@@ -40,9 +40,21 @@ function called(method: string) {
   return calls.filter((c) => c.method === method).map((c) => c.args)
 }
 
+const WEATHER_STATE_ROW = {
+  weather_status: 'pending',
+  weather_requested_at: '2026-09-30T10:00:00+00:00',
+  weather_attempted_at: null,
+}
+const WEATHER_STATE = { status: 'pending', requestedAt: '2026-09-30T10:00:00+00:00', attemptedAt: null }
+const NO_WEATHER_VALUES = {
+  weather_hour: null, weather_temperature_c: null, weather_pressure_hpa: null, weather_wind_speed_kmh: null,
+  weather_wind_direction_deg: null, weather_cloud_cover_pct: null, weather_precipitation_mm: null,
+  weather_code: null, weather_fetched_at: null,
+}
+
 function sessionRow(i: number) {
   const started = new Date(Date.UTC(2026, 8, 30, 12) - i * 3_600_000).toISOString().replace('.000Z', '+00:00')
-  return { id: `id-${i}`, started_at: started, ended_at: null, water_name: null, catches: [{ count: i }] }
+  return { id: `id-${i}`, started_at: started, ended_at: null, water_name: null, ...WEATHER_STATE_ROW, catches: [{ count: i }] }
 }
 
 beforeEach(() => {
@@ -87,11 +99,24 @@ describe('getSessionDetail (AC-29)', () => {
         accuracy_m: 12,
         created_at: 'c',
         updated_at: 'u',
+        weather_status: 'ok',
+        weather_requested_at: '2026-09-30T10:00:00+00:00',
+        weather_attempted_at: '2026-09-30T10:00:05+00:00',
+        weather_hour: '2026-09-30T10:00:00+00:00',
+        weather_temperature_c: 11.4,
+        weather_pressure_hpa: '1018.2',
+        weather_wind_speed_kmh: 14,
+        weather_wind_direction_deg: 225,
+        weather_cloud_cover_pct: 60,
+        weather_precipitation_mm: 0,
+        weather_code: null,
+        weather_fetched_at: '2026-09-30T10:00:05+00:00',
         catches: [
           {
             id: 'c1', session_id: UUID, caught_at: '2026-09-30T10:05:00+00:00', species: 'pike', species_other: null,
             length_cm: 60, weight_g: null, bait: 'Gummi', released: true,
             latitude: null, longitude: null, accuracy_m: null, position_source: 'none', created_at: 'c', updated_at: 'u',
+            weather_status: 'no_position', weather_requested_at: '2026-09-30T10:05:00+00:00', weather_attempted_at: null,
           },
         ],
       },
@@ -100,6 +125,26 @@ describe('getSessionDetail (AC-29)', () => {
     const detail = await q.getSessionDetail(UUID)
     expect(detail?.position).toEqual({ latitude: 54.1, longitude: 13.4, accuracy: 12 })
     expect(detail?.catches[0]).toMatchObject({ species: 'pike', lengthCm: 60, position: null, positionSource: 'none' })
+    // PROJ-3: full snapshot for the session (numeric strings accepted), state only for the catches
+    expect(detail?.weather).toEqual({
+      status: 'ok',
+      hour: '2026-09-30T10:00:00+00:00',
+      fetchedAt: '2026-09-30T10:00:05+00:00',
+      values: {
+        temperatureC: 11.4, pressureHpa: 1018.2, windSpeedKmh: 14, windDirectionDeg: 225,
+        cloudCoverPct: 60, precipitationMm: 0, weatherCode: null,
+      },
+    })
+    expect(detail?.weatherState).toEqual({
+      status: 'ok', requestedAt: '2026-09-30T10:00:00+00:00', attemptedAt: '2026-09-30T10:00:05+00:00',
+    })
+    expect(detail?.catches[0].weatherState).toEqual({
+      status: 'no_position', requestedAt: '2026-09-30T10:05:00+00:00', attemptedAt: null,
+    })
+    const [columns] = called('select')[0] as [string]
+    expect(columns).toContain('weather_temperature_c')
+    expect(columns).toMatch(/catches\([^)]*weather_status[^)]*\)/)
+    expect(columns).not.toMatch(/catches\([^)]*weather_temperature_c/)
     expect(called('order')).toEqual([
       ['caught_at', { ascending: true, referencedTable: 'catches' }],
       ['created_at', { ascending: true, referencedTable: 'catches' }],
@@ -112,19 +157,25 @@ describe('listSessions and the cursor (AC-1, EC-12)', () => {
     reply({ data: Array.from({ length: 21 }, (_, i) => sessionRow(i)), error: null })
     const page = await q.listSessions()
     expect(page.items).toHaveLength(20)
-    expect(page.items[3]).toEqual({ id: 'id-3', startedAt: sessionRow(3).started_at, endedAt: null, waterName: null, catchCount: 3 })
+    expect(page.items[3]).toEqual({
+      id: 'id-3', startedAt: sessionRow(3).started_at, endedAt: null, waterName: null, catchCount: 3,
+      weatherState: WEATHER_STATE,
+    })
     expect(page.nextCursor).toBe(sessionRow(19).started_at)
     expect(called('limit')).toEqual([[21]])
     expect(called('order')).toEqual([['started_at', { ascending: false }]])
     expect(called('lt')).toEqual([])
   })
 
-  it('selects no position columns', async () => {
+  it('selects no position columns and no weather values, only the weather state (PROJ-3 AC-17)', async () => {
     reply({ data: [], error: null })
     await q.listSessions()
     const [columns] = called('select')[0] as [string]
     expect(columns).not.toMatch(/latitude|longitude|accuracy/)
     expect(columns).toContain('catches(count)')
+    expect(columns).toContain('weather_status')
+    expect(columns).toContain('weather_requested_at')
+    expect(columns).not.toMatch(/weather_(temperature|pressure|wind|cloud|precipitation|code|hour)/)
   })
 
   it('has no cursor on the last section and filters by the normalised cursor', async () => {
@@ -205,6 +256,9 @@ describe('getCatchPrefill (AC-23) and getCatch', () => {
         id: UUID, session_id: 's1', caught_at: 't', species: 'other', species_other: 'Rapfen', length_cm: 40,
         weight_g: 800, bait: null, released: false, latitude: 1, longitude: 2, accuracy_m: 3, position_source: 'session',
         created_at: 'c', updated_at: 'u',
+        ...WEATHER_STATE_ROW,
+        weather_status: 'failed',
+        ...NO_WEATHER_VALUES,
         sessions: { id: 's1', started_at: 'a', ended_at: 'b', latitude: null, longitude: null, accuracy_m: null },
       },
       error: null,
@@ -212,5 +266,28 @@ describe('getCatchPrefill (AC-23) and getCatch', () => {
     const result = await q.getCatch(UUID)
     expect(result?.catch).toMatchObject({ speciesOther: 'Rapfen', positionSource: 'session', position: { latitude: 1, longitude: 2, accuracy: 3 } })
     expect(result?.session).toEqual({ id: 's1', startedAt: 'a', endedAt: 'b', hasPosition: false })
+    // PROJ-3 AC-15: the catch page reads the full snapshot; values only when the status is ok
+    expect(result?.weather).toEqual({ status: 'failed', hour: null, values: null, fetchedAt: null })
+    expect(result?.catch.weatherState.status).toBe('failed')
+    const [columns] = called('select')[0] as [string]
+    expect(columns).toContain('weather_temperature_c')
+  })
+
+  it('never shows values for a status other than ok, and maps an unknown status to pending', async () => {
+    reply({
+      data: {
+        id: UUID, session_id: 's1', caught_at: 't', species: 'pike', species_other: null, length_cm: 40,
+        weight_g: null, bait: null, released: true, latitude: 1, longitude: 2, accuracy_m: 3, position_source: 'gps',
+        created_at: 'c', updated_at: 'u',
+        ...WEATHER_STATE_ROW,
+        weather_status: 'weird',
+        ...NO_WEATHER_VALUES,
+        weather_temperature_c: 12,
+        sessions: { id: 's1', started_at: 'a', ended_at: 'b', latitude: 1, longitude: 2, accuracy_m: 3 },
+      },
+      error: null,
+    })
+    const result = await q.getCatch(UUID)
+    expect(result?.weather).toEqual({ status: 'pending', hour: null, values: null, fetchedAt: null })
   })
 })

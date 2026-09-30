@@ -127,7 +127,12 @@ describe('SessionBackfillForm', () => {
     actions.backfillSession.mockImplementationOnce(offline).mockResolvedValue(undefined)
     render(<SessionBackfillForm suggestions={[]} />)
     fillTimes()
+    // PROJ-3 AC-18: the hint about the weather of back then appears only with the switch on
+    expect(screen.queryByText(/Wetter von damals/)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('switch'))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Wetter von damals: Wir rufen die stündlichen Wetterdaten für diesen Zeitraum ab, soweit verfügbar.',
+    )
     fireEvent.click(await readySubmit('Session speichern'))
     await screen.findByText(NETWORK)
     fireEvent.click(await readySubmit('Session speichern'))

@@ -1,6 +1,8 @@
 // One session in the overview (PROJ-2: AC-1, EC-8; design.md → Sessions-Übersicht). Server-compatible:
 // no hooks, no browser APIs — the overview renders it on the server and again in the browser for
 // „Weitere laden". Deliberately without coordinates: the list never shows positions.
+// PROJ-3 (AC-17): „ohne Wetter" in the meta line when the session has no weather — the caller passes the
+// clock (`now`), so the card stays free of impure calls during render.
 import Link from 'next/link'
 import { ChevronRight, Clock, Fish } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -8,6 +10,8 @@ import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { formatDate, formatDuration, formatNumber, formatTime } from '@/lib/fishing/format'
 import type { SessionListItem } from '@/lib/fishing/queries'
+import { NoWeatherMarker } from '@/components/weather/no-weather-marker'
+import { isWithoutWeather } from '@/lib/weather/format'
 
 /** „1 Fang" / „3 Fänge" / „0 Fänge". */
 export function formatCatchCount(count: number): string {
@@ -30,9 +34,12 @@ export function LiveBadge({ className }: { className?: string }) {
   )
 }
 
-export type SessionCardProps = SessionListItem
+export type SessionCardProps = SessionListItem & {
+  /** The clock for „ohne Wetter" — a pending fetch younger than 5 minutes shows no marker (AC-17). */
+  now: Date
+}
 
-export function SessionCard({ id, startedAt, endedAt, waterName, catchCount }: SessionCardProps) {
+export function SessionCard({ id, startedAt, endedAt, waterName, catchCount, weatherState, now }: SessionCardProps) {
   return (
     <Link
       href={`/sessions/${id}`}
@@ -68,6 +75,7 @@ export function SessionCard({ id, startedAt, endedAt, waterName, catchCount }: S
               <Fish aria-hidden className="size-4 text-ink-400 dark:text-sand-400" />
               {formatCatchCount(catchCount)}
             </span>
+            {isWithoutWeather(weatherState, now) && <NoWeatherMarker variant="label" />}
           </div>
         </div>
         <ChevronRight aria-hidden className="size-5 shrink-0 text-ink-400 dark:text-sand-400" />

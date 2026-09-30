@@ -61,6 +61,11 @@ export default async function SessionsOverviewPage({
   )
 }
 
+/** The server's clock for this render — the list's „ohne Wetter" markers start from it (PROJ-3 AC-17). */
+function serverClock(): Date {
+  return new Date()
+}
+
 /** Hero (only without a running session), „Session nachtragen", then the list (AC-1, AC-2). */
 async function Overview() {
   let page: Awaited<ReturnType<typeof listSessions>>
@@ -82,7 +87,7 @@ async function Overview() {
       </Link>
       {page.items.length > 0 && (
         <div className="pt-2">
-          <SessionList initialPage={page} />
+          <SessionList initialPage={page} serverNow={serverClock().toISOString()} />
         </div>
       )}
     </>

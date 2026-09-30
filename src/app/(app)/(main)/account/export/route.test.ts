@@ -1,4 +1,5 @@
 // @vitest-environment node
+// Export route — PROJ-2: AC-35 (version 2: sessions and catches), PROJ-3: AC-21 (version 3: weather per entry).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type Result = { data: unknown; error: unknown }
@@ -36,6 +37,37 @@ vi.mock('@/lib/auth/require-user', () => ({
 
 const { GET } = await import('./route')
 
+// The weather columns as the select returns them (weather_requested_at / weather_attempted_at are never asked for).
+const okWeather = {
+  weather_status: 'ok',
+  weather_hour: '2026-09-29T17:00:00+00:00',
+  weather_temperature_c: 14.5,
+  weather_pressure_hpa: 1013.2,
+  weather_wind_speed_kmh: 18.4,
+  weather_wind_direction_deg: 270,
+  weather_cloud_cover_pct: 75,
+  weather_precipitation_mm: 0,
+  weather_code: 3,
+  weather_fetched_at: '2026-09-29T17:11:04.5+00:00',
+}
+
+const noWeather = (status: string) => ({
+  weather_status: status,
+  weather_hour: null,
+  weather_temperature_c: null,
+  weather_pressure_hpa: null,
+  weather_wind_speed_kmh: null,
+  weather_wind_direction_deg: null,
+  weather_cloud_cover_pct: null,
+  weather_precipitation_mm: null,
+  weather_code: null,
+  weather_fetched_at: null,
+})
+
+// A row without its flat weather_* columns — what the export keeps next to the nested `weather` object.
+const withoutWeather = (row: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith('weather_')))
+
 const catchRow = (over: Record<string, unknown>) => ({
   id: 'c-1',
   caught_at: '2026-09-29T17:10:00+00:00',
@@ -51,6 +83,7 @@ const catchRow = (over: Record<string, unknown>) => ({
   position_source: 'gps',
   created_at: '2026-09-29T17:11:02.123+00:00',
   updated_at: '2026-09-29T17:11:02.123+00:00',
+  ...okWeather,
   ...over,
 })
 
@@ -66,6 +99,9 @@ const sessionRows = [
     accuracy_m: 12,
     created_at: '2026-09-29T16:00:05+00:00',
     updated_at: '2026-09-29T19:30:01+00:00',
+    ...okWeather,
+    weather_hour: '2026-09-29T16:00:00+00:00',
+    weather_fetched_at: '2026-09-29T16:00:06+00:00',
     catches: [
       catchRow({}),
       catchRow({
@@ -79,6 +115,7 @@ const sessionRows = [
         longitude: null,
         accuracy_m: null,
         position_source: 'none',
+        ...noWeather('no_position'),
       }),
     ],
   },
@@ -93,6 +130,7 @@ const sessionRows = [
     accuracy_m: null,
     created_at: '2026-09-20T05:00:03+00:00',
     updated_at: '2026-09-20T05:00:03+00:00',
+    ...noWeather('failed'),
     catches: [],
   },
 ]
@@ -105,14 +143,14 @@ beforeEach(() => {
   }
 })
 
-describe('GET /account/export — version 2 (AC-35)', () => {
+describe('GET /account/export — version 3 (PROJ-2 AC-35, PROJ-3 AC-21)', () => {
   it('keeps account and profile from version 1 and adds all sessions with their catches', async () => {
     const response = await GET()
     expect(response.status).toBe(200)
     const body = await response.json()
 
     expect(body.format).toBe('petrilog-export')
-    expect(body.version).toBe(2)
+    expect(body.version).toBe(3)
     expect(body.account).toEqual({
       email: 'angler@example.com',
       created_at: '2026-09-01T08:00:00Z',
@@ -122,16 +160,131 @@ describe('GET /account/export — version 2 (AC-35)', () => {
     expect(body.profile).toEqual({ id: 'user-1', created_at: '2026-09-01T08:00:00+00:00' })
 
     expect(body.sessions.map((s: { id: string }) => s.id)).toEqual(['s-2', 's-1'])
-    const { catches, ...session } = body.sessions[0]
+    const { catches, weather, ...session } = body.sessions[0]
     const { catches: sourceCatches, ...sourceSession } = sessionRows[0]
-    expect(session).toEqual(sourceSession)
+    expect(session).toEqual(withoutWeather(sourceSession))
+    expect(weather.status).toBe('ok')
     expect(sourceCatches).toHaveLength(2)
     expect(catches).toHaveLength(2)
-    expect(catches[0]).toEqual({ ...catchRow({}), species_label: 'Hecht' })
+    const { weather: catchWeather, ...firstCatch } = catches[0]
+    expect(firstCatch).toEqual({ ...withoutWeather(catchRow({})), species_label: 'Hecht' })
+    expect(catchWeather.status).toBe('ok')
     expect(catches[1]).toMatchObject({ species: 'other', species_label: 'Sonstige', species_other: 'Rapfen' })
     expect(catches[1].position_source).toBe('none')
     expect(body.sessions[1].catches).toEqual([])
     expect(body.sessions[1].ended_at).toBeNull()
+  })
+
+  it('nests the full weather snapshot with its German label when the status is ok (AC-21)', async () => {
+    const body = await (await GET()).json()
+    expect(body.sessions[0].weather).toEqual({
+      status: 'ok',
+      hour: '2026-09-29T16:00:00+00:00',
+      temperature_c: 14.5,
+      pressure_hpa: 1013.2,
+      wind_speed_kmh: 18.4,
+      wind_direction_deg: 270,
+      cloud_cover_pct: 75,
+      precipitation_mm: 0,
+      weather_code: 3,
+      weather_label: 'Bewölkt',
+      fetched_at: '2026-09-29T16:00:06+00:00',
+    })
+    expect(body.sessions[0].catches[0].weather).toMatchObject({
+      status: 'ok',
+      hour: '2026-09-29T17:00:00+00:00',
+      weather_label: 'Bewölkt',
+      fetched_at: '2026-09-29T17:11:04.5+00:00',
+    })
+  })
+
+  it('writes only the status when there is no weather (failed, no_position, pending)', async () => {
+    let body = await (await GET()).json()
+    expect(body.sessions[0].catches[1].weather).toEqual({ status: 'no_position' })
+    expect(body.sessions[1].weather).toEqual({ status: 'failed' })
+
+    results.sessions = { data: [{ ...sessionRows[1], ...noWeather('pending') }], error: null }
+    body = await (await GET()).json()
+    expect(body.sessions[0].weather).toEqual({ status: 'pending' })
+  })
+
+  it('never writes the flat weather_* columns or the internal fill-in state', async () => {
+    const text = await (await GET()).text()
+    expect(text).not.toContain('weather_requested_at')
+    expect(text).not.toContain('weather_attempted_at')
+    expect(text).not.toContain('requested_at')
+    expect(text).not.toContain('attempted_at')
+    expect(text).not.toContain('"weather_status"')
+    expect(text).not.toContain('"weather_temperature_c"')
+    expect(text).not.toContain('"weather_hour"')
+    expect(text).not.toContain('"weather_fetched_at"')
+
+    const select = calls.find((c) => c.table === 'sessions' && c.method === 'select')
+    const columns = String(select!.args[0])
+    expect(columns).not.toMatch(/weather_requested_at|weather_attempted_at/)
+    const [sessionPart, catchPart] = columns.split('catches (')
+    for (const part of [sessionPart, catchPart]) {
+      for (const column of [
+        'weather_status',
+        'weather_hour',
+        'weather_temperature_c',
+        'weather_pressure_hpa',
+        'weather_wind_speed_kmh',
+        'weather_wind_direction_deg',
+        'weather_cloud_cover_pct',
+        'weather_precipitation_mm',
+        'weather_code',
+        'weather_fetched_at',
+      ]) {
+        expect(part).toContain(column)
+      }
+    }
+  })
+
+  it('turns numeric strings from the database into numbers and an unknown code into a null label', async () => {
+    results.sessions = {
+      data: [
+        {
+          ...sessionRows[1],
+          ...okWeather,
+          weather_temperature_c: '-3.5',
+          weather_pressure_hpa: '1002.0',
+          weather_wind_speed_kmh: '7.2',
+          weather_precipitation_mm: '1.4',
+          weather_code: 42,
+          catches: [catchRow({ weather_temperature_c: '0.0', weather_code: '61' })],
+        },
+      ],
+      error: null,
+    }
+    const body = await (await GET()).json()
+    expect(body.sessions[0].weather).toMatchObject({
+      temperature_c: -3.5,
+      pressure_hpa: 1002,
+      wind_speed_kmh: 7.2,
+      precipitation_mm: 1.4,
+      weather_code: 42,
+      weather_label: null,
+    })
+    expect(body.sessions[0].catches[0].weather).toMatchObject({
+      temperature_c: 0,
+      weather_code: 61,
+      weather_label: 'Leichter Regen',
+    })
+  })
+
+  it('keeps missing single values of an ok snapshot as null', async () => {
+    results.sessions = {
+      data: [{ ...sessionRows[1], ...okWeather, weather_pressure_hpa: null, weather_code: null }],
+      error: null,
+    }
+    const body = await (await GET()).json()
+    expect(body.sessions[0].weather).toMatchObject({
+      status: 'ok',
+      pressure_hpa: null,
+      weather_code: null,
+      weather_label: null,
+    })
   })
 
   it('keeps timestamps exactly as the database returns them (ISO with time zone)', async () => {
@@ -139,6 +292,8 @@ describe('GET /account/export — version 2 (AC-35)', () => {
     expect(body.sessions[0].started_at).toBe('2026-09-29T16:00:00+00:00')
     expect(body.sessions[0].catches[0].caught_at).toBe('2026-09-29T17:10:00+00:00')
     expect(body.sessions[0].catches[0].created_at).toBe('2026-09-29T17:11:02.123+00:00')
+    expect(body.sessions[0].weather.hour).toBe('2026-09-29T16:00:00+00:00')
+    expect(body.sessions[0].catches[0].weather.fetched_at).toBe('2026-09-29T17:11:04.5+00:00')
   })
 
   it('never asks for or writes out user_id or session_id', async () => {

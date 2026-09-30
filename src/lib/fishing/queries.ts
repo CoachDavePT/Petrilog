@@ -1,6 +1,8 @@
 // Server-side reads of Sessions & Fänge — PROJ-2 design.md → Datenmodell (Zugriff), Session starten
 // (Vorschläge), Fang eintragen (was die Seite lädt), Sessions-Übersicht, Rahmen der App, Detailansicht
-// (AC-1, AC-4, AC-7, AC-21, AC-23, AC-29, AC-34, EC-12).
+// (AC-1, AC-4, AC-7, AC-21, AC-23, AC-29, AC-34, EC-12). PROJ-3 adds the weather columns: the overview
+// and the catch list read only the weather state (for „ohne Wetter", AC-17), the detail view and the
+// catch page the full snapshot (AC-14, AC-15) — PROJ-3 design.md → Session-Übersicht und Fangzeile.
 //
 // Every read goes through the user-scoped Supabase client: Row Level Security returns only the
 // signed-in user's rows, so ownership is never checked here by hand and the service-role key is never
@@ -9,6 +11,7 @@
 import 'server-only'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { WEATHER_STATUSES, type WeatherSnapshot, type WeatherState, type WeatherStatus } from '@/lib/weather/types'
 import { idSchema, type Position } from './schemas'
 import { isSpeciesId, type SpeciesId } from './species'
 
@@ -42,6 +45,8 @@ export type SessionListItem = {
   endedAt: string | null
   waterName: string | null
   catchCount: number
+  /** Weather state only — never values or positions in the overview (PROJ-3 AC-17). */
+  weatherState: WeatherState
 }
 
 export type SessionPage = {
@@ -65,6 +70,8 @@ export type CatchDetail = {
   positionSource: PositionSource
   createdAt: string
   updatedAt: string
+  /** For the „ohne Wetter" marker and the automatic fill (PROJ-3 AC-9, AC-17). */
+  weatherState: WeatherState
 }
 
 export type SessionDetail = {
@@ -76,6 +83,9 @@ export type SessionDetail = {
   position: Position | null
   createdAt: string
   updatedAt: string
+  /** Weather at the start (PROJ-3 AC-14) and its state for the automatic fill (AC-9). */
+  weather: WeatherSnapshot
+  weatherState: WeatherState
   /** Ordered by catch time, oldest first (AC-29). */
   catches: CatchDetail[]
 }
@@ -83,6 +93,8 @@ export type SessionDetail = {
 /** A catch for its edit page, with just enough of its session for the time window. */
 export type CatchWithSession = {
   catch: CatchDetail
+  /** Weather at the catch time (PROJ-3 AC-15). */
+  weather: WeatherSnapshot
   session: {
     id: string
     startedAt: string
@@ -108,7 +120,28 @@ type PositionColumns = {
   accuracy_m: number | null
 }
 
-type SessionListRow = {
+type WeatherStateColumns = {
+  weather_status: string
+  weather_requested_at: string
+  weather_attempted_at: string | null
+}
+
+/** numeric columns may arrive as JSON numbers or as strings — both are accepted. */
+type NumericColumn = number | string | null
+
+type WeatherColumns = WeatherStateColumns & {
+  weather_hour: string | null
+  weather_temperature_c: NumericColumn
+  weather_pressure_hpa: NumericColumn
+  weather_wind_speed_kmh: NumericColumn
+  weather_wind_direction_deg: NumericColumn
+  weather_cloud_cover_pct: NumericColumn
+  weather_precipitation_mm: NumericColumn
+  weather_code: NumericColumn
+  weather_fetched_at: string | null
+}
+
+type SessionListRow = WeatherStateColumns & {
   id: string
   started_at: string
   ended_at: string | null
@@ -116,7 +149,7 @@ type SessionListRow = {
   catches: CountEmbed
 }
 
-type CatchRow = PositionColumns & {
+type CatchRow = PositionColumns & WeatherStateColumns & {
   id: string
   session_id: string
   caught_at: string
@@ -131,7 +164,7 @@ type CatchRow = PositionColumns & {
   updated_at: string
 }
 
-type SessionDetailRow = PositionColumns & {
+type SessionDetailRow = PositionColumns & WeatherColumns & {
   id: string
   started_at: string
   ended_at: string | null
@@ -144,15 +177,18 @@ type SessionDetailRow = PositionColumns & {
 
 type CatchSessionEmbed = PositionColumns & { id: string; started_at: string; ended_at: string | null }
 
-type CatchWithSessionRow = CatchRow & {
+type CatchWithSessionRow = CatchRow & WeatherColumns & {
   // many-to-one embeds come back as an object; tolerate the array shape the untyped client assumes
   sessions: CatchSessionEmbed | CatchSessionEmbed[] | null
 }
 
-const SESSION_LIST_COLUMNS = 'id, started_at, ended_at, water_name, catches(count)'
-const CATCH_COLUMNS =
-  'id, session_id, caught_at, species, species_other, length_cm, weight_g, bait, released, latitude, longitude, accuracy_m, position_source, created_at, updated_at'
-const SESSION_DETAIL_COLUMNS = `id, started_at, ended_at, water_name, note, latitude, longitude, accuracy_m, created_at, updated_at, catches(${CATCH_COLUMNS})`
+const WEATHER_STATE_COLUMNS = 'weather_status, weather_requested_at, weather_attempted_at'
+const WEATHER_VALUE_COLUMNS =
+  'weather_hour, weather_temperature_c, weather_pressure_hpa, weather_wind_speed_kmh, weather_wind_direction_deg, weather_cloud_cover_pct, weather_precipitation_mm, weather_code, weather_fetched_at'
+
+const SESSION_LIST_COLUMNS = `id, started_at, ended_at, water_name, ${WEATHER_STATE_COLUMNS}, catches(count)`
+const CATCH_COLUMNS = `id, session_id, caught_at, species, species_other, length_cm, weight_g, bait, released, latitude, longitude, accuracy_m, position_source, created_at, updated_at, ${WEATHER_STATE_COLUMNS}`
+const SESSION_DETAIL_COLUMNS = `id, started_at, ended_at, water_name, note, latitude, longitude, accuracy_m, created_at, updated_at, ${WEATHER_STATE_COLUMNS}, ${WEATHER_VALUE_COLUMNS}, catches(${CATCH_COLUMNS})`
 
 // ---------------------------------------------------------------------------------------------------
 // Helpers
@@ -185,6 +221,44 @@ function toPosition(row: PositionColumns): Position | null {
   return { latitude: row.latitude, longitude: row.longitude, accuracy: row.accuracy_m }
 }
 
+function toWeatherStatus(value: string): WeatherStatus {
+  return (WEATHER_STATUSES as readonly string[]).includes(value) ? (value as WeatherStatus) : 'pending'
+}
+
+function toWeatherState(row: WeatherStateColumns): WeatherState {
+  return {
+    status: toWeatherStatus(row.weather_status),
+    requestedAt: row.weather_requested_at,
+    attemptedAt: row.weather_attempted_at,
+  }
+}
+
+function toNumber(value: NumericColumn): number | null {
+  if (value === null) return null
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/** The snapshot as the pages show it: values only when the database says `ok`. */
+function toWeatherSnapshot(row: WeatherColumns): WeatherSnapshot {
+  const status = toWeatherStatus(row.weather_status)
+  if (status !== 'ok') return { status, hour: null, values: null, fetchedAt: null }
+  return {
+    status,
+    hour: row.weather_hour,
+    fetchedAt: row.weather_fetched_at,
+    values: {
+      temperatureC: toNumber(row.weather_temperature_c),
+      pressureHpa: toNumber(row.weather_pressure_hpa),
+      windSpeedKmh: toNumber(row.weather_wind_speed_kmh),
+      windDirectionDeg: toNumber(row.weather_wind_direction_deg),
+      cloudCoverPct: toNumber(row.weather_cloud_cover_pct),
+      precipitationMm: toNumber(row.weather_precipitation_mm),
+      weatherCode: toNumber(row.weather_code),
+    },
+  }
+}
+
 function toCount(embed: CountEmbed): number {
   return embed?.[0]?.count ?? 0
 }
@@ -209,6 +283,7 @@ function toCatch(row: CatchRow): CatchDetail {
     positionSource: toPositionSource(row.position_source),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    weatherState: toWeatherState(row),
   }
 }
 
@@ -219,6 +294,7 @@ function toListItem(row: SessionListRow): SessionListItem {
     endedAt: row.ended_at,
     waterName: row.water_name,
     catchCount: toCount(row.catches),
+    weatherState: toWeatherState(row),
   }
 }
 
@@ -322,6 +398,8 @@ export async function getSessionDetail(id: string): Promise<SessionDetail | null
     position: toPosition(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    weather: toWeatherSnapshot(row),
+    weatherState: toWeatherState(row),
     catches: (row.catches ?? []).map(toCatch),
   }
 }
@@ -332,7 +410,7 @@ export async function getCatch(catchId: string): Promise<CatchWithSession | null
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('catches')
-    .select(`${CATCH_COLUMNS}, sessions(id, started_at, ended_at, latitude, longitude, accuracy_m)`)
+    .select(`${CATCH_COLUMNS}, ${WEATHER_VALUE_COLUMNS}, sessions(id, started_at, ended_at, latitude, longitude, accuracy_m)`)
     .eq('id', catchId)
     .maybeSingle()
   if (error) queryFailed('getCatch', error)
@@ -343,6 +421,7 @@ export async function getCatch(catchId: string): Promise<CatchWithSession | null
   if (!session) return null
   return {
     catch: toCatch(row),
+    weather: toWeatherSnapshot(row),
     session: {
       id: session.id,
       startedAt: session.started_at,
