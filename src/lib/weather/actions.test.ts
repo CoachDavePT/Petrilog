@@ -268,6 +268,30 @@ describe('failures (AC-8, AC-10, EC-7)', () => {
     expect(writes().map((b) => b.table)).toEqual(['sessions'])
   })
 
+  it('sends at most 4 requests to Open-Meteo at the same time (design.md, EC-5)', async () => {
+    // six catches at six different places → six groups
+    readResult = {
+      data: session({ latitude: null, longitude: null, weather_status: 'no_position' }, Array.from({ length: 6 }, (_, i) =>
+        catchRow(i, { latitude: 50 + i, longitude: 10 + i }),
+      )),
+      error: null,
+    }
+    let running = 0
+    let peak = 0
+    fetchOpenMeteo.mockImplementation(async () => {
+      running++
+      peak = Math.max(peak, running)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      running--
+      return openMeteoDay()
+    })
+    vi.useRealTimers()
+    const result = await fillMissingWeather({ sessionId: SESSION })
+    expect(fetchOpenMeteo).toHaveBeenCalledTimes(6)
+    expect(peak).toBe(4)
+    expect(result).toMatchObject({ status: 'ok', failed: false })
+  })
+
   it('never returns values or positions to the browser', async () => {
     const result = await fillMissingWeather({ sessionId: SESSION })
     expect(Object.keys(result).sort()).toEqual(['failed', 'filled', 'status'])
