@@ -1,0 +1,17 @@
+# Auth settings for a Supabase Cloud project on the Free plan (see README.md → "Datenbank und
+# Auth-Einstellungen übertragen"). Only these properties are pushed; everything the file does not
+# declare stays as it is in the cloud project. The German e-mail templates from supabase/config.toml
+# are left out on purpose: the Free plan refuses template changes while the built-in mail service
+# is used. Push with:  npx supabase --workdir cloud-auth config push --project-ref <project-ref>
+project_id = "Petrilog"
+
+[auth]
+site_url = "http://localhost:3553"
+additional_redirect_urls = ["http://localhost:3553/**", "http://127.0.0.1:3553/**"]
+minimum_password_length = 8
+
+[auth.email]
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "10s"
+otp_expiry = 86400

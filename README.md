@@ -43,11 +43,12 @@ Die **Project Ref** steht danach in der Adresse des Dashboards (`https://supabas
 npx supabase login                               # öffnet den Browser zur Anmeldung
 npx supabase link --project-ref <project-ref>    # fragt nach dem Datenbank-Passwort
 npx supabase db push                             # spielt alle Migrationen aus supabase/migrations/ ein
-npx supabase config push                         # überträgt die Auth-Einstellungen aus supabase/config.toml
+npx supabase --workdir cloud-auth config push --project-ref <project-ref>   # überträgt die Auth-Einstellungen
 ```
 
 - `db push` legt alle Tabellen, Regeln, Trigger, Row-Level-Security-Richtlinien und Aufräum-Jobs an (Dateien in [`supabase/migrations/`](supabase/migrations/), in dieser Reihenfolge).
-- `config push` zeigt jede Änderung an und fragt vor dem Schreiben nach. Übertragen werden u. a. Site-URL `http://localhost:3553`, Passwort-Mindestlänge 8, Bestätigung per E-Mail, sicherer Passwortwechsel und die deutschen Mailvorlagen aus [`supabase/templates/`](supabase/templates/).
+- `config push` zeigt die Änderungen an und fragt vor dem Schreiben nach (mit `y` bestätigen). Übertragen wird nur, was in [`cloud-auth/supabase/config.toml`](cloud-auth/supabase/config.toml) steht: Site-URL `http://localhost:3553` samt Weiterleitungszielen, Passwort-Mindestlänge 8, Bestätigung per E-Mail, sicherer Passwortwechsel, Link-Gültigkeit 24 Stunden.
+- Die deutschen Mailvorlagen aus [`supabase/templates/`](supabase/templates/) lassen sich im Free Plan nur mit eigenem Mail-Dienst (SMTP) übertragen. Ohne ihn verschickt Supabase seine englischen Standard-Mails (siehe „Hinweise zum Supabase Free Plan“).
 
 ### 4. Umgebungsvariablen
 
@@ -78,9 +79,9 @@ Die App läuft unter **http://localhost:3553**. Für die Standortabfrage (GPS) m
 
 ## Hinweise zum Supabase Free Plan
 
-- **Bestätigungs-Mails:** Der eingebaute Mailversand von Supabase stellt nur an Mitglieder der eigenen Supabase-Organisation zu und nur wenige Mails pro Stunde. Wer mit der **eigenen** E-Mail-Adresse registriert, bekommt die Bestätigung. Für weitere Testkonten (z. B. zwei Nutzer, um die Datentrennung zu prüfen) gibt es zwei Wege:
-  - einen eigenen Mail-Dienst (SMTP) unter **Authentication → Emails → SMTP Settings** eintragen, oder
-  - die Bestätigung unter **Authentication → Sign In / Providers → Email → „Confirm email“** abschalten. Dann zeigt die App nach der Registrierung zwar „Prüfe dein Postfach“, man kann sich aber sofort anmelden. „Passwort vergessen“ braucht weiterhin Mailversand.
+- **Bestätigungs-Mails:** Der eingebaute Mailversand von Supabase stellt nur an Mitglieder der eigenen Supabase-Organisation zu und nur wenige Mails pro Stunde. Wer mit der **eigenen** E-Mail-Adresse registriert, bekommt die Bestätigung — als englische Standard-Mail („Confirm your signup“). Nach dem Klick auf den Link ist die Adresse bestätigt; danach unter http://localhost:3553/login anmelden.
+- **Weitere Testkonten** (z. B. zwei Nutzer, um die Datentrennung zu prüfen) am einfachsten unter **Authentication → Users → Add user → Create new user** mit „Auto Confirm User“ anlegen.
+- **„Passwort vergessen“** braucht die deutschen Mailvorlagen der App und funktioniert deshalb erst mit eigenem Mail-Dienst: SMTP unter **Authentication → Emails → SMTP Settings** eintragen, dann `npx supabase config push` (ohne `--workdir`) überträgt auch die Vorlagen. Lokal mit Docker (unten) funktioniert alles ohne diese Einschränkung.
 - **Pausierung:** Kostenlose Projekte werden nach etwa einer Woche ohne Aktivität pausiert und lassen sich im Dashboard wieder starten.
 
 ## Alternative: alles lokal mit Docker
