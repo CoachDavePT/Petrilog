@@ -1,256 +1,323 @@
 # QA-Testergebnisse: PROJ-2 Sessions & Fänge
 
-**Getestet:** 2026-09-30
-**App-URL:** http://localhost:3553 (`probe.kind: http`, Dev-Server `npm run dev`). Für die Produktionsprüfungen lief zusätzlich `next start` des aktuellen Builds (HEAD `b855239`) auf http://localhost:3556. Die lokale Supabase lief in Docker (API `127.0.0.1:55321`, Mailpit `127.0.0.1:55324`).
-**Tester:** QA Engineer (AI). Geprüft haben unabhängige `qa-engineer`-Läufe, die den Bau nicht kannten: Abnahme (Step 2) und Regression (Step 4 + 5). Die Security-Lane (Step 3) hat nach ihren Prüfungen keinen Bericht zurückgegeben. Deshalb hat der `/qa`-Owner den Red-Team-Teil selbst ausgeführt. Er hat den Bau ebenfalls nicht gesehen. Die Umsetzungsnotizen in `design.md` hat er erst nach den eigenen Befunden gelesen. Der Owner hat alle Ergebnisse zusammengeführt.
-**Umfang:** `full`. Das ist der erste `/qa` von PROJ-2. Weil PROJ-2 Dateien von PROJ-1 berührt, war die Regression von PROJ-1 im Umfang. Betroffen sind der gemeinsame Formular-Baustein, die Konto-Seite (jetzt in `(main)`), der Export (Version 2) und die Datenschutzseite.
+**Getestet:** 2026-09-30 (zweiter `/qa`-Lauf, Stand `43821db`)
+**App-URL:** http://localhost:3553 (`probe.kind: http`, Dev-Server `npm run dev`). Für die Produktionsprüfungen lief zusätzlich `next start` des aktuellen Builds auf http://localhost:3556. Er ist am Ende gestoppt. Die lokale Supabase lief in Docker (API `127.0.0.1:55321`, Mailpit `127.0.0.1:55324`).
+**Tester:** QA Engineer (AI). Geprüft haben drei unabhängige `qa-engineer`-Läufe, die den Bau nicht kannten: Abnahme (Step 2), Security (Step 3) und Regression (Step 4 + 5). Alle drei haben berichtet. Der `/qa`-Owner hat den Bau ebenfalls nicht gesehen. Er hat die Suiten einmal vor dem Fan-out laufen lassen, die Migration geprüft, Gegenproben zu den alten Bugs gemacht, die Unit-Tests geschrieben und die Ergebnisse zusammengeführt.
 **Autonomer Lauf:** Der Nutzer hat den Lauf vorab freigegeben und war nicht erreichbar. Wo der Skill eine Rückfrage vorsieht, galt die empfohlene Wahl. Die Priorisierung der Bugs (Step 8) steht als Empfehlung unten.
+
+**Umfang: `full` (volle Breite), keine Re-Verifikation.** Begründung nach dem Skill-Abschnitt „Re-verification“:
+- Der alte Bericht hatte offene Bugs, und seitdem ist ein Commit dazugekommen. Er kam aber über `/refine`: `43821db` ändert den Vertrag (`spec.md`: AC-24 und EC-6 für BUG-1, dazu eine Zeile im Entscheidungsprotokoll). Der Skill sagt: „Not a re-verification: … a feature back from `/refine` (the contract changed — full width)“.
+- Unabhängig davon enthält der Diff eine Migration. Das allein verlangt schon den vollen Fan-out in voller Breite.
+- Diff-Befehl: `git diff --stat 68134f3..HEAD`. Geänderte Produktionsdateien:
+  - `supabase/migrations/20260930140000_catch_window_and_no_reopen.sql` (neu)
+  - `src/lib/fishing/schemas.ts`
+  - `src/lib/fishing/actions/sessions.ts`
+  - `src/lib/fishing/actions/catches.ts`
+  - `src/lib/fishing/messages.ts`
+  - `src/components/fishing/delete-catch-dialog.tsx`
+  - `src/app/(app)/sessions/[id]/catches/[catchId]/page.tsx`
+  - Dazu 5 Testdateien und die Doku (`spec.md`, `design.md`, `tasks.md`, `INDEX.md`).
+- Folge: Alle AC und EC wurden in diesem Lauf neu ausgeübt. Nichts ist aus dem alten Bericht übernommen. Jedes `[x]` unten ist eine Prüfung aus diesem Lauf.
 
 > Legende: `[x]` in diesem Lauf geprüft (mit Beleg) · `[ ] BUG` als fehlerhaft belegt · `[!] NOT VERIFIED` in diesem Lauf nicht prüfbar (mit Grund)
 >
-> **Testdaten:** Adressen `qa-p2-acc-*`, `qa-p2-reg-*`, `qa-p2-sec-*`, `qa-p2-sec2-*` und `qa-p2-own-1@example.test`. Alle Konten samt Sessions und Fängen wurden am Ende gelöscht und per Zählabfrage bestätigt (siehe Ende). Aufrufe der Server Actions liefen über HTTP aus Node (`Next-Action`-Header), direkte Datenbankzugriffe über PostgREST mit dem Zugang des jeweiligen Testnutzers und `psql` im Container.
+> **Skripte und Testdaten:** Scratchpad des Laufs, Unterordner `acc/` (Abnahme, `t01`–`t23`), `sec/` (Security, `t3`–`t18`), `reg/` (Regression, `t1`–`t9`) und `own/` (Owner, `o1.mjs`, `o2.mjs`). Testkonten: `qa-p2r-acc-*`, `qa-p2r-sec-*`, `qa-p2r-reg-*`, `qa-p2r-own-1-*@example.test`. Alle wurden am Ende samt Daten gelöscht (siehe Aufräumen). Server Actions liefen über HTTP aus Node (`Next-Action`-Header), direkte Datenbankzugriffe über PostgREST mit dem Zugang des jeweiligen Testnutzers und über `psql` im Container.
 
-### Automatisierte Tests (einmal vor dem Fan-out gelaufen)
-- [x] Unit-Suite `npm test`: 21 Dateien, 353 bestanden, 0 fehlgeschlagen, exit 0 (vitest 4.1.11). Die Lanes haben diesen Lauf zitiert und nicht wiederholt.
-- [x] Produktions-Build `npm run build`: exit 0, TypeScript fehlerfrei, 18 Routen plus Proxy (Next.js 16.3.7).
-- [x] Lint `npm run lint`: exit 0.
-- [x] Migrationen: `npx supabase migration list --local` zeigt alle 5 angewendet. Der Inhalt in `supabase_migrations.schema_migrations` stimmt mit den Dateien überein (md5 nach Entfernen von Leerraum und Kommentaren, alle 5 identisch). `git diff --stat main..HEAD -- supabase/migrations` zeigt nur die neue Datei `20260930120000_sessions_catches.sql`. Die Migrationen aus PROJ-1 sind unverändert.
-- [x] Neue Unit-Tests aus diesem Lauf: 2 Dateien, 13/13 grün, rote Runde gemacht (siehe „Unit-Tests aus /qa“).
+### Automatisierte Tests und Build (einmal vor dem Fan-out)
+- [x] Unit-Suite `npm test`: 23 Dateien, 368 bestanden, 0 fehlgeschlagen, exit 0 (vitest 4.1.11). Die Ausgabe liegt in `suite-run.txt`. Alle Lanes haben diesen Lauf zitiert und die Suite nicht neu gestartet.
+- [x] Lint `npm run lint`: exit 0, keine Befunde (`lint.txt`).
+- [x] Produktions-Build `npm run build`: exit 0, TypeScript fehlerfrei, 18 Routen plus Proxy (`build.txt`). Der Diff berührt App-Code, deshalb lief der Build.
+- [x] Migration (der Diff berührt `supabase/migrations`, deshalb lief die Prüfung):
+  - `npx supabase migration list --local` zeigt alle 6 Migrationen lokal und in der DB, inklusive `20260930140000`.
+  - Die Funktionskörper von `check_catch_in_session` und `check_session_keeps_catches` in der DB sind identisch mit der Datei (md5 nach Entfernen von Leerraum, `mig-md5.cjs`).
+  - Die Trigger `catches_check_in_session` (`before insert or update of caught_at, session_id`) und `sessions_check_keeps_catches` (`before update of started_at, ended_at`) hängen an diesen Funktionen (`pg_get_triggerdef`).
+  - Ein erneutes Einspielen der Migration in einer Transaktion mit `rollback` läuft fehlerfrei (`create or replace` + `revoke`, mit `ON_ERROR_STOP`).
+  - `execute` für `authenticated` ist entzogen, `search_path` ist leer.
+- [x] Neue Unit-Tests aus diesem Lauf: 1 Datei, 5/5 grün, rote Runde gemacht (siehe „Unit-Tests aus /qa“).
+- E2E: Es gibt kein `tests/`-Verzeichnis, also nichts auszuführen (siehe unten).
 
 ## Acceptance Criteria
 
 #### App-Rahmen & Übersicht
-- [x] **AC-1**: `GET /` zeigt die Überzeile „Dein Fangbuch“ und die Tab-Leiste „Sessions · Start · Konto“. Die Karten stehen neueste zuerst, mit Datum, Gewässer, „Dauer 3:40 h“ bzw. „Läuft“ und „3 Fänge“ (Abnahme-Lane, HTML per curl).
-- [x] **AC-2**: Ohne Sessions zeigt `/` „Bereit für den nächsten Wurf?“ mit „Session starten“ und darunter „Session nachtragen“ (Abnahme-Lane).
-- [x] **AC-3**: `GET /start` leitet ohne laufende Session mit 307 nach `/sessions/new` und mit laufender Session nach `/sessions/<id>` (Abnahme-Lane; Owner auf `:3556`: 307 → `/sessions/new`).
-- [x] **AC-4**: Auf `/` und `/account` erscheint die Leiste „Müggelsee 0:01 h · 3 Fänge · Fang eintragen“ mit Link auf `/sessions/<id>`. Der Rückfall „Ohne Gewässer“ steht in `active-session-bar.tsx` (Abnahme-Lane).
-- [x] **AC-5**: `GET /account` liefert die Konto-Seite aus PROJ-1 mit AppBar „Konto“ und Tab-Leiste (Abnahme- und Regressions-Lane).
+- [x] **AC-1**: `GET /` zeigt „Dein Fangbuch“ und die Tabs „Sessions · Start · Konto“. Jede Karte hat Datum und Uhrzeit, Gewässer bzw. „Ohne Gewässer“, Dauer bzw. „Läuft“ und die Fanganzahl, neueste zuerst (Abnahme `t01`, `t07`, `t18`; `queries.ts:278-296`, `session-card.tsx:46,65`).
+- [x] **AC-2**: Ohne Sessions zeigt `/` „Bereit für den nächsten Wurf?“ mit „Session starten“ und darunter „Session nachtragen“ (Abnahme `t01`; `(main)/page.tsx:78-82`).
+- [x] **AC-3**: `/start` leitet ohne laufende Session mit 307 nach `/sessions/new`, mit laufender Session nach `/sessions/<id>` (Abnahme `t01`, `t02`; `start/page.tsx:11-15`).
+- [x] **AC-4**: Auf `/` und `/account` steht die Leiste der laufenden Session mit Gewässer bzw. „Ohne Gewässer“, Laufzeit, Fanganzahl und „Fang eintragen“. Die Leiste verlinkt auf die Detailansicht. Unterseiten haben keine Leiste (Abnahme `t02`; `active-session-bar.tsx:106-130`).
+- [x] **AC-5**: `/account` zeigt die Konto-Seite aus PROJ-1 im Rahmen: AppBar „Konto“, Tab-Leiste mit `aria-current="page"` auf „Konto“, kein zweiter Header (Abnahme `t01`, Regression PROJ-1 AC-19).
 
 #### Session starten
-- [x] **AC-6**: `startSession` leitet nach `/sessions/<id>?notice=session-started`. In der DB steht der Start minutengenau, der Name getrimmt, die Position 52.4412345/13.6512345 und die Genauigkeit 12 (aus 12,4 gerundet). Der Payload enthält „Session gestartet“ (Abnahme-Lane).
-- [x] **AC-7**: Die Vorschläge im Payload enthalten nur eigene Namen, zuletzt genutzte zuerst (A `["Müggelsee","Havel Süd"]`, B `["Spree","Seeteich"]`). Ein Name mit 81 Zeichen ergibt „Höchstens 80 Zeichen.“, eine Notiz mit 501 Zeichen „Höchstens 500 Zeichen.“, auch serverseitig (Owner: `updateSession` mit 81 Zeichen → Feldfehler). Den Wortanfangs-Filter belegt `session-forms.test.tsx:224`.
-- [x] **AC-8**: Ein Start mit `position: null` speichert keine Position. Die Detailseite zeigt „Ohne Position“ und „Position fehlt. Prüfe die Standortfreigabe deines Browsers.“ Die 10-s-Grenze steht in `use-location.ts` und ist durch `use-location.test.ts:131` belegt. Die echte Browser-Ortung ist NOT VERIFIED (siehe unten).
-- [x] **AC-9**: Ein zweiter Start mit neuer Kennung ergibt `?notice=session-running`, es bleibt 1 Zeile. Die Seite zeigt „Es läuft bereits eine Session.“ (Abnahme-Lane).
+- [x] **AC-6**: `startSession` legt die Session an. Der Start ist die Server-Minute, der Name ist getrimmt, die Genauigkeit wird von 12,4 auf 12 gerundet. Die Antwort leitet nach `/sessions/<id>?notice=session-started`, dort stehen „Session gestartet“, die Koordinaten und „± 12 m“ (Abnahme `t02`; Owner `o1.mjs`). Die echte Ortung im Browser ist NOT VERIFIED. Zum Randfall nach einer Session mit Ende in der Zukunft siehe BUG-8.
+- [x] **AC-7**: 81 Zeichen Name ergeben „Höchstens 80 Zeichen.“, 501 Zeichen Notiz „Höchstens 500 Zeichen.“, jeweils in Start, Nachtrag und Bearbeiten. 80 bzw. 500 Zeichen werden gespeichert. Die Vorschläge enthalten nur eigene Namen, die zuletzt genutzten zuerst (Abnahme `t22`; `queries.ts:359-369`). Den Filter im Browser belegt `session-forms.test.tsx:230`.
+- [x] **AC-8**: Ein Start ohne Position speichert keine Position. Die Detailseite zeigt „Ohne Position“ und „Position fehlt. Prüfe die Standortfreigabe deines Browsers.“ (`[id]/page.tsx:154`). Die 10-s-Grenze steht in `use-location.ts:61-86` und ist durch `use-location.test.ts:131` in der Suite belegt (Abnahme).
+- [x] **AC-9**: Ein zweiter Start mit neuer Kennung leitet nach `?notice=session-running` auf die laufende Session, es bleibt 1 Session. Die Seite zeigt „Es läuft bereits eine Session.“ (Abnahme `t02`).
 
 #### Session beenden
-- [x] **AC-10**: `endSession mode:now` ergibt `?notice=session-ended` mit dem Toast „Session beendet · 3:00 h“. Danach fehlt die Leiste auf `/`, die Hero-Karte ist zurück. Auswahl und Vorbelegung „Jetzt“ belegt `end-session-sheet.test.tsx:47` (Abnahme-Lane). Einschränkung siehe BUG-1.
-- [x] **AC-11**: Bei einem Start vor 13 h zeigen `/` und die Detailansicht „Läuft seit über 12 Stunden. Vergessen zu beenden?“ mit „Beenden“ (Abnahme-Lane).
-- [ ] **AC-12** — BUG-2 (Low). Abgelehnt wird korrekt, die Meldung steht am Feld `endedAt`, gespeichert wird nichts. Nur die 48-h-Meldung nennt die erlaubte Spanne („… höchstens 48 Stunden (bis 29.09., 23:27).“). „Das Ende muss nach dem Start liegen.“, „Dieser Zeitpunkt liegt in der Zukunft.“ und „Der Fang um … läge außerhalb der Session.“ nennen sie nicht, wie der AC es verlangt (Abnahme-Lane).
+- [x] **AC-10**: `endSession` mit „now“ leitet nach `?notice=session-ended`, der Toast lautet „Session beendet · 0:02 h“. Danach fehlt die Leiste auf `/`, die Hero-Karte ist zurück. Die Auswahl „Jetzt“ im Sheet belegen `end-session-sheet.test.tsx:54,65` (Abnahme `t06`, `t07`).
+- [x] **AC-11**: Bei einer Session, die seit 50 h läuft, zeigen Leiste und Detailansicht „Läuft seit über 12 Stunden. Vergessen zu beenden?“ mit „Beenden“ (Abnahme `t12`; `format.ts:142`).
+- [x] **AC-12**: Abgelehnt werden: Ende vor dem Start, gleich dem Start, vor dem letzten Fang, in der Zukunft, mehr als 48 h. Es wird nichts gespeichert. Jede Meldung nennt jetzt die Spanne („Möglich ist ein Ende zwischen … und ….“), bei eigener Uhrzeit am Feld `endedAt` (Abnahme `t09`, `t12`; Owner `o1.mjs` P5: „… höchstens 48 Stunden (bis 30.09., 00:42). Möglich ist ein Ende zwischen 30.09., 00:42 und 30.09., 00:42.“). **BUG-2 ist behoben.**
+- [ ] **AC-12, Randfall** — BUG-7 (Low): In der ersten Minute einer Session und bei einem letzten Fang in der 2-Minuten-Toleranz nennt die Meldung eine umgekehrte Spanne („zwischen 30.09., 02:43 und 30.09., 02:42“).
 
 #### Session nachtragen
-- [x] **AC-13**: `backfillSession` legt eine beendete Session ohne Position an und leitet mit `?notice=session-saved` weiter (Abnahme-Lane; Owner-Gegenprobe `s1.mjs`).
-- [x] **AC-14**: Mit Schalter und Position wird gespeichert (54.08512, 1234 m). Ohne Schalter wird eine mitgeschickte Position verworfen (`schemas.ts`, Transform in `backfillSessionSchema`). Owner: Eine unsinnige Position (`'NaN'`, `1e308`, `-5`) ergibt „ohne Position“ statt eines Fehlers.
-- [x] **AC-15**: Direkte Server-Aufrufe (Browser-Prüfung umgangen) lehnen ab: Ende gleich oder vor dem Start, mehr als 48 h, Zukunft, fehlendes Ende. Genau 48 h werden gespeichert. Dass die Eingaben stehen bleiben, belegt `session-forms.test.tsx:152`. „Kürzer als 1 Minute“ ist über HTTP nicht erreichbar, weil Zeiten minutengenau sind. Geprüft ist es in `sessionTimeErrors` und im DB-Check `sessions_duration_check`.
-- [x] **AC-16**: 19–21 Uhr gegen 16–20 Uhr ergibt „Überschneidet sich mit deiner Session vom 12.09., 16:00–20:00.“ Gegen die laufende Session kommt „… mit deiner laufenden Session seit 01:24.“ Angrenzend (20–21 Uhr) wird gespeichert. Das gilt auch beim Bearbeiten. Die Garantie ist die Ausschlussregel `sessions_no_overlap` (Migration).
+- [x] **AC-13**: `backfillSession` legt eine beendete Session ohne Position an, auch wenn bei ausgeschaltetem Schalter eine Position mitgeschickt wird. Die Antwort leitet mit `?notice=session-saved` weiter (Abnahme `t09`; `schemas.ts:157-167`).
+- [x] **AC-14**: Mit Schalter wird die Position 52.5/13.3 mit Genauigkeit 35 gespeichert. Die Abfrage erfolgt nur mit Schalter (Abnahme `t09`; `session-forms.test.tsx:105,125`).
+- [x] **AC-15**: Direkte Server-Aufrufe (Browser-Prüfung umgangen) lehnen am Feld ab: Ende vor oder gleich dem Start, mehr als 48 h, Start oder Ende in der Zukunft, fehlendes Ende, 1900 mit 49 h. Genau 48 h werden gespeichert. Die Prüfsummen der Datenbank bleiben gleich (Abnahme `t09`, `t10`; Security `t8-bypass.cjs`). Dass die Eingaben stehen bleiben, belegt `session-forms.test.tsx:158`. Zur fehlenden Zukunftsregel in der Datenbank siehe BUG-9.
+- [x] **AC-16**: Die Meldungen lauten „Überschneidet sich mit deiner Session vom 12.09., 16:00–20:00.“ bzw. „… laufenden Session seit 29.09., 23:42.“ Aneinandergrenzende Sessions werden gespeichert. Die Datenbank-Garantie greift per REST mit 23P01 `sessions_no_overlap` (Abnahme `t09`–`t11`; `20260930120000_sessions_catches.sql:72-77`).
 
 #### Session bearbeiten & löschen
-- [x] **AC-17**: `updateSession` ändert Name, Notiz und Start und leitet mit `session-saved` weiter. Die Position bleibt. Bei einer laufenden Session wird ein mitgeschicktes Ende ignoriert (Abnahme-Lane).
-- [x] **AC-18**: Start 17:30 bei einem Fang um 17:20 ergibt „Der Fang um 17:20 (Hecht) läge außerhalb der Session.“ Ende 19:00 bei einem Fang um 20:00 wird ebenso abgelehnt (Abnahme-Lane).
-- [x] **AC-19**: `deleteSession` leitet nach `/?notice=session-deleted`, der Toast lautet „Session gelöscht“. Session und Fänge haben danach 0 Zeilen. Der Dialogtext kommt aus `deleteSessionDescription`. Eine laufende Session lässt sich löschen, danach fehlt die Leiste (Abnahme-Lane).
+- [x] **AC-17**: Name, Notiz, Start und Ende werden geändert, danach folgt `?notice=session-saved`. Mitgeschickte Positionsfelder werden ignoriert, die Position 54.1/13.4/20 bleibt. Eine laufende Session hat kein Endfeld (Abnahme `t10`, `t11`).
+- [x] **AC-18**: Start nach dem Fang bzw. Ende davor ergibt „Der Fang um 17:20 (Hecht) läge außerhalb der Session.“ Es wird nichts gespeichert. Ein REST-`PATCH` auf `started_at` ergibt 400 `catch_outside_session` (Abnahme `t10`; neue Migration Z. 53-64).
+- [x] **AC-19**: `deleteSession` löscht die Session samt 2 Fängen (DB 0/0) und leitet nach `/?notice=session-deleted`. Eine laufende Session lässt sich löschen, danach fehlt die Leiste. Der Dialog bekommt die Fanganzahl 2 (Payload), der Text steht in `messages.ts:91-95` (Abnahme `t17`).
 
 #### Fang eintragen
-- [x] **AC-20**: `createCatch` mit GPS leitet nach `?notice=catch-saved`, `position_source = gps`. Die Standard-Fangzeit ist die Minute beim Laden (`initialNow` im Payload) (Abnahme-Lane; Owner `s1.mjs`).
-- [x] **AC-21**: Die Reihenfolge in `species.ts` entspricht der Spec. Zuletzt genutzte Arten stehen oben. Bei „Sonstige“ ergibt ein leerer Name „Bitte gib die Fischart ein.“, 41 Zeichen ergeben „Höchstens 40 Zeichen.“ (Abnahme-Lane). Die Auswahl der zuletzt genutzten Arten ist neu durch `species-select.test.ts` abgedeckt.
-- [x] **AC-22**: Serverseitig abgelehnt mit Meldung am Feld und 0 geschriebenen Zeilen: Art fehlt oder ungültig; Länge 0, 251, „12.5“ oder leer; Gewicht 0, 150001 oder „1,5“; Köder mit 61 Zeichen; `released` fehlt oder ist der String „true“. Die Grenzwerte 250 und 150.000 werden gespeichert (Abnahme-Lane).
-- [x] **AC-23**: Der Payload `prefill {"bait":null,"released":true}` stammt vom zuletzt angelegten Fang. Den ersten Fang belegen `catch-form.test.tsx:74,84` (Abnahme-Lane).
-- [x] **AC-24**: Eine Zeit vor dem Start oder nach dem Ende ergibt „Die Fangzeit muss zwischen 16:00 und 20:00 liegen.“ Start und Ende selbst werden gespeichert. In einer laufenden Session wird +10 min abgelehnt (Abnahme-Lane). Zur fehlenden 48-h-Grenze siehe BUG-1.
-- [x] **AC-25**: Ohne oder mit kaputter Position (lat 95) wird die Session-Position mit Herkunft `session` kopiert. Hat auch die Session keine Position, gilt `none` (Abnahme-Lane).
-- [x] **AC-26**: Beim Fang nachtragen wird eine mitgeschickte Position ignoriert, gespeichert wird die Kopie mit `session` bzw. `none`. Keine Standortabfrage: `catch-form.test.tsx:171`. Mit manipulierter Anfrage lässt sich das umgehen, siehe BUG-4 (Low).
+- [x] **AC-20**: `createCatch` mit GPS speichert `position_source = gps` und leitet nach `?notice=catch-saved`. Die Standard-Fangzeit ist die Minute beim Öffnen des Formulars (Abnahme `t03`; `catches/new/page.tsx:17-19`).
+- [x] **AC-21**: Die Reihenfolge der 17 Arten stimmt (`species.ts:4-22`, DB-Check in der Migration Z. 122-125). Die zuletzt genutzten Arten stehen oben (Payload `recentSpecies ["perch","eel","zander"]`). „Sonstige“ ohne Namen ergibt „Bitte gib die Fischart ein.“, 41 Zeichen „Höchstens 40 Zeichen.“ (Abnahme).
+- [x] **AC-22**: 24 ungültige Fälle per HTTP (Abnahme `t04`) und 19 per Security `t6` werden am Feld abgelehnt: Art, Länge (0, 251, 30.5, -3, leer, „abc“), Gewicht (0, 150001, 12.5), Köder mit 61 Zeichen, `released` fehlend oder als String. Die Grenzwerte 1/250/150000/60 werden gespeichert. Die CHECK-Regeln der DB lehnen dieselben Werte ab.
+- [x] **AC-23**: Beim ersten Fang sind „Zurückgesetzt“ und ein leerer Köder vorbelegt, danach die Werte des zuletzt angelegten Fangs („Wobbler“, „Entnommen“) (Abnahme `t03`, `t04`).
+- [x] **AC-24** (verfeinert): Abgelehnt werden eine Zeit vor dem Start, nach dem Ende, jetzt + 5 min und bei einer laufenden Session Start + 48 h + 1 min. Die Meldung lautet „Die Fangzeit muss zwischen … und … liegen.“ Start, Ende und genau Start + 48 h werden gespeichert. Die Datenbank lehnt per REST mit `catch_outside_session` ab. Belege:
+  - Abnahme `t05`, `t12`, `t15`; Security `t6`.
+  - Owner `o1.mjs` P5, Session seit 50 h: Ein Fang jetzt wird abgelehnt mit „… zwischen 28.09., 00:42 und 30.09., 00:42 …“, 0 Zeilen. Ein Fang bei Start + 48 h wird gespeichert, einer bei + 1 min abgelehnt. Ein REST-Insert ergibt 400 P0001.
+  - Code: `schemas.ts:337-338`, neue Migration Z. 28-34.
+- [x] **AC-25**: Ohne GPS wird die Session-Position mit Herkunft `session` kopiert, ohne Session-Position gilt `none`. Eine kaputte Position (lat „x“) ergibt `none`, der Fang geht nicht verloren (Abnahme `t03`; `catches.ts:153-175`).
+- [x] **AC-26**: Beim Fang nachtragen in einer beendeten Session wird eine mitgeschickte Client-Position verworfen. Es gilt die Kopie der Session (`session`) bzw. `none`. Beim Nachtragen gibt es keine Standortabfrage (Abnahme `t15`; Owner `o1.mjs` P3 „honest flag“ → `52.5|13.4|session`; `catch-form.test.tsx:171`). Mit einer manipulierten Anfrage lässt sich das umgehen. Das ist BUG-4, **akzeptiert** (siehe unten).
 
 #### Fang bearbeiten & löschen
-- [x] **AC-27**: `updateCatch` ändert alle Felder und leitet mit `catch-saved` weiter. Eine fremde `sessionId` und eine mitgeschickte Position werden ignoriert. Länge 0 ergibt einen Feldfehler (Abnahme-Lane).
-- [x] **AC-28**: `deleteCatch` leitet nach `/sessions/<id>?notice=catch-deleted`, danach 0 Zeilen (Abnahme-Lane; Owner `s5.mjs`, erster Aufruf).
+- [x] **AC-27**: Es gelten dieselben Regeln (Zeit außerhalb, Länge 300, „Sonstige“ ohne Namen). Mitgeschickte `sessionId`, Position, `user_id` und `position_source` bleiben ohne Wirkung, danach folgt `?notice=catch-saved` (Abnahme `t15`; Security `t8`, `t9`; `catches.ts:321-322`).
+- [x] **AC-28**: `deleteCatch` entfernt die Zeile und leitet nach `?notice=catch-deleted` mit „Fang gelöscht“. Ein zweites Löschen führt ebenfalls zur Session (Abnahme `t17`; Owner `o1.mjs` P2). **BUG-5 ist behoben.**
 
 #### Detailansicht
-- [x] **AC-29**: Das HTML zeigt Name, Datum, „22:26 bis 30.09., 01:26“, Dauer, Notiz, Koordinaten „52,44123° N · 13,65123° O ± 12 m“ und die Fänge nach Uhrzeit mit Art, Länge, Gewicht, Köder, Status und Herkunft „GPS“ / „von der Session“ / „Ohne Position“ (Abnahme-Lane).
-- [x] **AC-30**: 3 Fänge in 3:00 h ergeben „1,0“. Laufend wird bis jetzt gerechnet (Abnahme-Lane).
-- [x] **AC-31**: Eine Session ohne Fang zeigt „Noch keine Fänge. Petri Heil!“ und „Fänge pro Stunde 0,0“ (Abnahme-Lane).
+- [x] **AC-29**: Die Detailseite zeigt Gewässer, Datum, „15:30 bis 19:00“, Dauer, Kennzahl und die Fänge nach Uhrzeit mit Art, Länge, Gewicht, Köder, Status und Herkunft der Position („± 800 m · GPS“, „· von der Session“, „Ohne Position“) (Abnahme).
+- [x] **AC-30**: 2 Fänge in 7 h ergeben „0,3“, 2 in 3,5 h „0,6“, 11 in 2 min „330,0“. Bei einer laufenden Session wird bis jetzt gerechnet (Abnahme; `format.ts:131-139`).
+- [x] **AC-31**: Eine Session ohne Fang zeigt „Noch keine Fänge. Petri Heil!“ und „0,0“. Sie bleibt in Übersicht und Export (Abnahme `t02`).
 
 #### Zugriffsschutz
-- [x] **AC-32**: Nutzer B gegen die Daten von A, über die App und direkt über die Datenbank:
-  - Alle acht Actions mit Kennungen von A ergeben `/?notice=session-gone`. Die Daten von A bleiben unverändert (DB-Abfrage danach).
-  - `GET` auf Detail, Bearbeiten, Fang eintragen und Fang mit Kennungen von A ergibt 404 „Diese Seite gibt es nicht.“ Die Antwort enthält keine Inhalte von A.
-  - PostgREST mit dem Zugang von B:
-    - `select` auf Sessions und Fänge ergibt `[]`.
-    - Anlegen mit `user_id = A` wird von RLS abgelehnt (42501).
-    - Einen Fang in der Session von A anzulegen scheitert: 23503 `catches_session_owner_fkey` bzw. 42501.
-    - Einen eigenen Fang in die Session von A zu verschieben scheitert ebenso: 23503 bzw. 42501.
-    - Die eigene Session an A zu übergeben scheitert mit 42501.
-    - `PATCH`/`DELETE` auf Zeilen von A ergeben `[]`.
-    - `rpc/check_catch_in_session` und `rpc/set_updated_at` sind nicht aufrufbar (404).
-  - Eine Kennung von A wiederzuverwenden (`startSession`, `createCatch`) ergibt „Bitte prüfe deine Eingaben.“
-  - Belege: Owner `s2.mjs`, Abnahme-Lane.
-- [x] **AC-33**: Ohne Anmeldung ergeben alle Seiten 307 → `/login`: `/`, `/start`, `/sessions/**` und `/account/export` (Owner auf `:3556`, Regressions-Lane auf `:3553`). Die Action `startSession` ohne Cookie ergibt 307 → `/login`. PostgREST mit dem anon-Key ergibt für `sessions` und `catches` 401/42501.
-- [x] **AC-34**: Die Vorschläge von A und B enthalten jeweils nur eigene Namen (Abnahme-Lane, siehe AC-7).
+- [x] **AC-32**: Nutzer B gegen A, über die App und direkt über die Datenbank:
+  - App: B ruft 6 Unterseiten mit Kennungen von A auf und bekommt 404 „Diese Seite gibt es nicht.“, genauso lang wie bei einer zufälligen UUID (11073 Zeichen). 14 Action-Angriffe ergeben `session-gone` bzw. „Bitte prüfe deine Eingaben.“ Die Zeilen von A und B sind danach unverändert (md5-Prüfsummen).
+  - PostgREST mit dem Token von B:
+    - GET liefert nur eigene Zeilen, auch eingebettet.
+    - PATCH und DELETE auf Zeilen von A treffen 0 Zeilen.
+    - Ein Insert mit `user_id = A` scheitert mit 403 (RLS).
+    - Ein Fang in einer Session von A scheitert mit 409 an `catches_session_owner_fkey`, ein Umhängen ebenfalls mit 409 bzw. 403.
+    - RPC auf die Trigger-Funktionen ergibt 404, GraphQL ist aus.
+  - Belege: Security `t3`, `t4`, `t5`; Abnahme `t13`, `t14`; RLS in der Migration Z. 273-329, FK Z. 112-115.
+- [x] **AC-33**: Ohne Anmeldung, mit unsinnigem Cookie und mit gefälschtem JWT (`alg:none`, falscher Schlüssel) enden alle 10 Seiten und 5 Actions mit 307 → `/login`, 60 Anfragen insgesamt. anon-REST auf `sessions`/`catches` ergibt 401 (Security `t15-anon.cjs`; Abnahme `t01`, `t13`; `src/proxy.ts:56`, `require-user.ts:10-17`).
+- [x] **AC-34**: A sieht bei den Vorschlägen keine Namen von B und umgekehrt (Abnahme `t14`; Security `t14-ac34.cjs`).
 
 #### Datenschutz
-- [x] **AC-35**: `/account/export` liefert `version 2` mit 8 Sessions und 7 Fängen, genau wie in der DB. Enthalten sind alle Felder samt Positionen, Genauigkeit, `position_source` und `species_label`, aber kein `user_id` und keine fremden Daten (Abnahme-Lane; Owner: kein `user_id`, keine ID von B). Die Header lauten `application/json`, `attachment`, `private, no-store` (`:3556`).
-- [x] **AC-36**: `getCurrentPosition` gibt es nur in `use-location.ts`. `requestPosition()` wird nur beim Speichern aufgerufen: im Start-Formular, beim Nachtragen nur mit Schalter, im Fang-Formular nur bei laufender Session. `watchPosition` gibt es nicht. Beleg: `use-location.test.ts:74` (Abnahme-Lane).
-- [x] **AC-37**: `location-explainer.tsx` enthält den Text aus dem Design, einen Link auf `/privacy` und „Weiter“. Belege: `use-location.test.ts:173,194,215`. Wie der Dialog aussieht, ist NOT VERIFIED.
-- [x] **AC-38**: `removeSessionPosition` leert die Position der Session, die Fänge behalten ihre Kopien (`session`). `removeCatchPosition` setzt die Position auf leer und die Herkunft auf `none`. Die Detailseite zeigt „Ohne Position“ (Abnahme-Lane).
-- [x] **AC-39**: `/privacy` enthält „Dein Fangbuch“ mit Daten, Zweck, „Nur du kannst sie sehen.“ und Speicherdauer bis zur Löschung (Abnahme- und Regressions-Lane).
-- [x] **AC-40**: Nach dem Löschen von Fang, Session und Konto stehen per `psql` 0 Zeilen in der DB. Es gibt keine Spalte für weiches Löschen (Migration) (Abnahme-Lane).
+- [ ] **AC-35** — BUG-6 (Medium): Unter 1000 Sessions ist der Export vollständig: `version 2`, alle Felder samt Position, Genauigkeit, Herkunft und `species_label`, kein `user_id`, keine fremden Daten, `attachment` und `private, no-store` (Abnahme `t17`; Security `t12`, `t13`). **Ab 1001 Sessions** wird er ohne Hinweis abgeschnitten: Bei 1104 Sessions enthält er 1000 (Abnahme `t23`).
+- [x] **AC-36**: Der einzige Zugriff auf die Standort-API steht in `use-location.ts:110-123`. Aufgerufen wird er nur beim Speichern: im Start-Formular, im Fang-Formular nur bei laufender Session (`catch-form.tsx:190-191`), beim Nachtragen nur mit Schalter. `watchPosition` gibt es nicht. Belege: `use-location.test.ts:74`, `catch-form.test.tsx:74`, `session-forms.test.tsx:56,105` in der Suite (Abnahme). Die echte Browser-Abfrage ist NOT VERIFIED.
+- [!] **AC-37** — NOT VERIFIED (Browser): Code und Test sind bestätigt. Der Erklärtext mit Link „Datenschutz“ → `/privacy` steht in `location-explainer.tsx:19,53-60`. Die Abfrage kommt erst nach „Weiter“ (`use-location.ts:113-119`, `use-location.test.ts:173`). Die tatsächliche Reihenfolge vor dem Rechte-Dialog des Browsers braucht einen Browser.
+- [x] **AC-38**: `removeSessionPosition` leert die Session-Position, der Fang behält seine Kopie (54.1/13.4/20, `session`). `removeCatchPosition` leert den Fang und setzt `none`. Die Detailseite zeigt „Ohne Position“ (Abnahme `t15`; Security `t17`, `t18`).
+- [x] **AC-39**: `/privacy` hat den Abschnitt „Dein Fangbuch“ mit Positionen samt Zeitpunkt, Gewässer, Notizen, Fangangaben, Zweck, „Nur du kannst sie sehen“ und Speicherdauer bis zur Löschung (Abnahme; Regression PROJ-1 AC-30).
+- [x] **AC-40**: Nach dem Löschen von Fang, Session und Konto sind die Zeilen sofort weg (count 0). In `public` gibt es keine Spalte für weiches Löschen (`information_schema`) (Abnahme `t17`, `t20`; Security `t17-del.cjs`).
 
 ## Edge Cases
 
-- [x] **EC-1**: 4 parallele Starts ergeben 3 × `session-running`, 1 × `session-started` und genau 1 laufende Zeile. Garantie: eindeutiger Index `sessions_one_running_per_user` (Migration `20260930120000_sessions_catches.sql`, `create unique index … where ended_at is null`).
-- [x] **EC-2**: Eine Wiederholung mit derselben Kennung (Session und Fang) ergibt Erfolg ohne zweite Zeile. Garantie: Primärschlüssel plus Zweig `duplicate-id` (`db-errors.ts`, `sessions.ts` ca. Z. 223–226, `catches.ts` ca. Z. 253–266). Die Button-Sperre belegt `use-server-action.test.ts:55`. Neu: `entry-id.test.ts` belegt, dass jede Formular-Kennung eine gültige v4-UUID ist, auch im Ersatzweg ohne `crypto.randomUUID`.
-- [x] **EC-3**: Belegt über Tests, zur Laufzeit nicht provoziert: Warn-Notice „Keine Verbindung …“, gleiche Kennung, gemerkte Position (`catch-form.test.tsx:114`, `session-forms.test.tsx:50,70`, `use-server-action.test.ts:42`). Ein echter Verbindungsabbruch ist NOT VERIFIED.
-- [x] **EC-4**: Session anderswo um 01:17 beendet, Fang um 01:27 → „Die Session wurde inzwischen beendet (Ende 01:17).“ Ein Fang innerhalb wird mit der ermittelten GPS-Position gespeichert. Garantie: Trigger `check_catch_in_session` mit `for share` auf der Session-Zeile, gegen die Zeilensperre des Session-Updates mit `sessions_check_keeps_catches`. Ein REST-Insert außerhalb ergibt P0001 `catch_outside_session`.
-- [x] **EC-5**: Nach dem Löschen der Session ergeben `createCatch`, `updateSession`, `endSession` und `updateCatch` `/?notice=session-gone`, und `/` zeigt „Diese Session gibt es nicht mehr.“ (Abnahme-Lane). Siehe auch BUG-5.
-- [ ] **EC-6** — BUG-1 (Medium). Ohne Fänge nach der 48-h-Marke hält die Regel: „Jetzt“ wird mit „… höchstens 48 Stunden (bis …)“ abgelehnt, Deaktivierung und Vorauswahl belegen `end-session-sheet.test.tsx:63,74`. Eine laufende Session nimmt aber Fänge **nach** der 48-h-Marke an. Danach lässt sie sich mit keiner Option mehr beenden (Owner `s4.mjs`, Abnahme-Lane).
-- [x] **EC-7**: Genauigkeit 800 ergibt „± 800 m“, 1234 ergibt „± 1,2 km“. Beide werden gespeichert (Abnahme-Lane).
-- [x] **EC-8**: 13.09. 22:30 bis 14.09. 02:10 ergibt „bis 14.09., 02:10“ und „3:40 h“ und steht unter dem 13.09. Die Zeitumstellung 29.03. 01:30+01 bis 03:30+02 ergibt „1:00 h“ (Abnahme-Lane).
-- [x] **EC-9**: Laufende Session, jeweils mit Meldung abgelehnt: Start in der Zukunft, Start nach dem ersten Fang, Start in einer anderen Session. Garantie: Trigger `sessions_check_keeps_catches`; ein REST-Update ergibt P0001.
-- [x] **EC-10**: `updateCatch` außerhalb der geänderten Session ergibt „Die Fangzeit muss zwischen 00:27 und 01:17 liegen.“ Garantie: derselbe Trigger bei einem Update von `caught_at`.
-- [x] **EC-11**: Konto A hatte eine laufende Session, 9 Sessions und 8 Fänge. `deleteAccount` leitet nach `/login?notice=account-deleted`. Danach sind `sessions`, `catches`, `profiles` und `auth.users` je 0 (Abnahme-Lane). Die Regressions-Lane hat dasselbe unabhängig belegt (PROJ-1 EC-12).
-- [x] **EC-12**: Mit 45 Sessions antwortet `GET /` in 134 ms mit 20 Karten und „Weitere laden“. `loadMoreSessions` liefert 20, dann 5, dann `nextCursor: null`. Die Antwort enthält keine `latitude`. Ob die Seite im Browser spürbar hängt, ist NOT VERIFIED.
-- [ ] **EC-13** — BUG-3 (Low). In der App geht es korrekt: Keine Action setzt das Ende wieder auf leer, und `endSession` schreibt nur mit `.is('ended_at', null)`. Über die Datenbank-Schnittstelle kann ein Nutzer aber seine **eigene** beendete Session wieder öffnen: `PATCH sessions {ended_at:null}` ergibt `[{"ended_at":null}]` (Abnahme-Lane). Owner-Gegenprobe: Mit einer laufenden Session scheitert es nur am Index „eine laufende Session“ (23505).
+- [x] **EC-1**: 6 parallele Starts mit verschiedenen Kennungen ergeben 1 × `session-started`, 5 × `session-running` und 1 laufende Session. REST ergibt 409 23505. Garantie: eindeutiger Index `sessions_one_running_per_user` (`20260930120000_sessions_catches.sql:63-65`) (Abnahme `t21`; Security).
+- [x] **EC-2**: 6 parallele `createCatch` bzw. `backfillSession` mit derselben Kennung ergeben jeweils 1 Zeile, alle Antworten „gespeichert“. Garantie: Primärschlüssel plus Zweig `duplicate-id` (`db-errors.ts:46`, `sessions.ts:225-228`, `catches.ts:256-269`). Die Button-Sperre steht in `catch-form.tsx:356`, `session-start-form.tsx:132`, `session-backfill-form.tsx:225` und ist durch `use-server-action.test.ts` in der Suite belegt (Abnahme `t21`; Security `t10-ec2.cjs`).
+- [x] **EC-3**: Belegt über Code und Tests, zur Laufzeit nicht provoziert: Warn-Notice, Eingaben bleiben, Kennung und Position bleiben für den zweiten Versuch (`use-server-action.ts:85-89`, `catch-form.tsx:175-176,191`; `catch-form.test.tsx:114`, `session-forms.test.tsx:56,76,125`, `use-server-action.test.ts:42`). Ein echter Verbindungsabbruch ist NOT VERIFIED.
+- [x] **EC-4**: Session auf „Gerät 1“ beendet, Fang auf „Gerät 2“ danach → „Die Session wurde inzwischen beendet (Ende 30.09., 02:42).“ Ein Fang innerhalb wird mit GPS gespeichert. Garantie: `for share` auf die Session-Zeile im Fang-Trigger (neue Migration Z. 16-21) gegen den Update-Trigger der Session und das Beenden nur bei leerem Ende (`sessions.ts:393-399`) (Abnahme `t16`; Security `t11-ec4.cjs`).
+- [x] **EC-5**: Nach dem Löschen der Session führen `createCatch`, `updateSession`, `endSession` und `deleteSession` alle nach `/?notice=session-gone`. `/` zeigt „Diese Session gibt es nicht mehr.“ (Abnahme `t16`).
+- [x] **EC-6** (verfeinert): Eine Session läuft seit 50 h.
+  - „Jetzt“ wird abgelehnt mit „… höchstens 48 Stunden (bis …) …“, eine eigene Uhrzeit bei Start + 48 h + 1 min ebenfalls.
+  - „Zeit des letzten Fangs“ beendet die Session mit genau 48:00 h.
+  - Fänge nach der 48-h-Marke werden in App und DB abgelehnt, es gibt also immer eine gültige Endzeit.
+  - Im Sheet ist „Jetzt“ gesperrt, vorausgewählt ist der letzte Fang bzw. nichts (`end-session-sheet.tsx:62-73,230`, Tests `:70,81`).
+  - Belege: Abnahme `t12`; Owner `o1.mjs` P5 (`Session beendet · 48:00 h`); Unit-Test `schemas.catch-window.test.ts`.
+  - **BUG-1 ist behoben.**
+- [x] **EC-7**: Genauigkeit 800 m ergibt „± 800 m · GPS“, 1500 m „± 1,5 km · GPS“. Beide werden gespeichert (Abnahme; `format.ts:177-181`).
+- [x] **EC-8**: Über das Ende der Sommerzeit (22:00 → 04:00) ergibt „7:00 h“, über den Beginn der Sommerzeit (01:00 → 04:00) „2:00 h“, über Mitternacht „bis 21.09., 02:10“ mit „3:40 h“. Die Session steht jeweils unter dem Startdatum (Abnahme `t18`).
+- [x] **EC-9**: Bei einer laufenden Session werden abgelehnt: Start in der Zukunft, Start nach dem ersten Fang („Der Fang um 01:42 (Barsch) …“), Start in einer anderen Session. Jede Meldung nennt den Grund (Abnahme `t10`, `t11`). Das Zurücksetzen des Starts über 48 h vor einen neueren Fang lehnt `firstCatchOutside` ab (Unit-Test `schemas.catch-window.test.ts`).
+- [x] **EC-10**: Die Session wurde anderswo auf 19:00 gekürzt, der Fang wird auf 19:30 bearbeitet → „Die Fangzeit muss zwischen 15:30 und 19:00 liegen.“ Garantie: Trigger `check_catch_in_session` bei einem Update von `caught_at` (neue Migration Z. 6-38) (Abnahme `t15`; Security `t11`).
+- [x] **EC-11**: Ein Konto mit laufender Session und 12 Fängen wird per `deleteAccount` gelöscht. Danach sind Sessions, Fänge, Profil und `auth.users` je 0 (Abnahme `t20`; Security `t18.cjs`; Regression PROJ-1 EC-12).
+- [x] **EC-12**: Bei 504 Sessions antwortet `GET /` in 170 ms mit 20 Karten und „Weitere laden“. 25 × `loadMoreSessions` (je höchstens 110 ms) liefern alle 504, ohne Doppelte und ohne Positionsfelder (Abnahme `t19`, `t19b`). Das Rendern im Browser ist NOT VERIFIED.
+- [x] **EC-13**: Ein direkter `PATCH ended_at = null` über PostgREST ergibt 400 `session_already_ended`, das Ende bleibt gesetzt. In der App setzt keine Action das Ende auf leer, und `updateSession` ohne Ende bei einer beendeten Session ergibt eine Pflichtmeldung (Abnahme; Security `t6`, `t11`; Owner `o1.mjs` P4; neue Migration Z. 49-51). **BUG-3 ist behoben.**
 
 #### Zusätzliche Edge Cases (nicht in der Spec)
-- [ ] **Zweites Löschen desselben Fangs** — BUG-5 (Low): Der erste `deleteCatch` ergibt `catch-deleted`, der zweite `/?notice=session-gone` („Diese Session gibt es nicht mehr.“), obwohl die Session noch existiert (Owner `s5.mjs`).
-- [x] **Zeitraum-Filter der Übersicht** (`loadMoreSessions`): Fremde Filter im Cursor (`…,user_id.neq.x`, `…)or(id.gt.0`), eine Zahl und `null` werden alle mit „Bitte prüfe deine Eingaben.“ abgelehnt. Nur ein ISO-Zeitpunkt wird angenommen (Owner `s3.mjs`; `queries.ts:177`).
-- [x] **Übergroße Anfrage**: Eine Notiz mit 2 MB wird vom Body-Limit der Server Actions abgelehnt, es entsteht keine Session (Owner `s3.mjs`).
-- [x] **Typverwirrung**: `endSession` mit `null`, `"x"`, Array, `{}`, `[]` oder `__proto__`/`constructor` im Objekt ergibt „Bitte prüfe deine Eingaben.“ (Owner `s2.mjs`).
+- [x] **Wiederholtes Löschen desselben Fangs** (früher BUG-5):
+  - Löschen #1 und #2 mit Session-Kennung ergeben beide `/sessions/<id>?notice=catch-deleted`.
+  - Ohne Session-Kennung ergibt es `session-gone`, mit ungültiger Kennung „Bitte prüfe deine Eingaben.“
+  - Eine fremde Session in der Anfrage bleibt `session-gone` und verrät nichts (Owner `o1.mjs` P2; Abnahme `t17`; `catches.ts:368-376`).
+  - Nur `[catchId]/page.tsx:32` rendert den Dialog, und zwar mit `sessionId`.
+- [ ] **Beenden in der ersten Minute bzw. mit einem letzten Fang in der Toleranz** — BUG-7 (Low), siehe unten.
+- [ ] **„Session starten“ direkt nach einer Session, deren Ende in der Zukunft liegt** — BUG-8 (Low), siehe unten.
+- [x] **Kaputte oder unplausible Position**: lat „x“ ergibt `none`, eine Genauigkeit von 250 km wird auf 100.000 m gekappt (Abnahme; `schemas.ts:126-135`).
+- [x] **Unbekannter `?notice`-Code** wird ignoriert. Eine fremde Fang-Kennung unter der eigenen Session-Adresse ergibt 404 (Abnahme; `[catchId]/page.tsx:22`).
+- [x] **Zeitraum-Filter der Übersicht**: Ein PostgREST-Filter als Cursor (`…),user_id.neq.x,or(…`) wird mit „Bitte prüfe deine Eingaben.“ abgelehnt (Security `t12`; `queries.ts:177-181`).
+- [x] **Übergroße Anfrage**: Ein Body mit 1 MB wird am Body-Limit der Server Actions abgelehnt, es entsteht nichts (Security).
 
 ## Security-Audit (Red Team)
 
-_Ausgeführt vom `/qa`-Owner (Security-Lane ohne Bericht, siehe Kopf). Skripte `s1.mjs`–`s5.mjs` im Scratchpad des Laufs._
+_Ausgeführt von der Security-Lane, Brute Force und Kontoauflistung von der Regressions-Lane (PROJ-1). Skripte in `sec/` bzw. `reg/`._
 
-- [x] **Authentifizierung**: Alle neuen Adressen ergeben ohne Anmeldung 307 → `/login` (`:3556` und `:3553`). Eine Server Action ohne Cookie ergibt 307 → `/login`. Jede Action ruft zuerst `requireUser()` auf (`sessions.ts`, `catches.ts`, `overview.ts:14`).
-- [x] **Autorisierung**: Siehe AC-32. B kommt weder über die App noch über PostgREST an Daten von A. Fremde und nicht existierende Kennungen ergeben dieselbe 404-Seite, die Antwort verrät also nicht, ob es die Kennung gibt. RLS-Policies `*_own` für `select`/`insert`/`update`/`delete` auf beiden Tabellen (Migration), dazu der Fremdschlüssel `catches_session_owner_fkey` auf (Session, Besitzer).
+- [x] **Authentifizierung**: 60 Anfragen ohne, mit unsinnigem und mit gefälschtem Cookie/JWT ergeben alle 307 → `/login`, die DB bleibt unverändert. Auch Pfade außerhalb des Proxy-Matchers (`/sessions/x.png`) leiten um. Jede Action ruft zuerst `requireUser()` auf (`sessions.ts:207/252/295/354/418/443`, `catches.ts:215/292/355/392`; `src/proxy.ts:56`).
+- [x] **Autorisierung**: siehe AC-32. B kommt weder über die App noch über PostgREST an Daten von A. RLS ist für beide Tabellen aktiv (`relrowsecurity = t`), mit `*_own`-Policies für alle vier Operationen und `with check` bei insert/update. Dazu kommt der FK auf das Paar (Session, Besitzer). Keine der Tabellen ist in der Realtime-Publication.
 - [x] **Eingabeprüfung / XSS / Injection**:
-  - `<script>alert(1)</script>` als Gewässername, `"><img src=x onerror=alert(1)>` in Notiz und Köder und `<svg onload=alert(1)>` als Artname werden gespeichert.
-  - Auf `/`, der Detailansicht, „Bearbeiten“, „Fang bearbeiten“ und `/sessions/new` erscheinen sie nur maskiert, nie roh.
-  - SQL-Text (`x' OR 1=1; drop table sessions;--`) wird wörtlich gespeichert.
-  - Die Cursor-Injection wird abgelehnt (siehe oben).
-  - Belege: Owner `s3.mjs`; Zod-Schemas in `schemas.ts`.
-- [!] **Rate Limiting auf den PROJ-2-Actions** — NOT VERIFIED, nicht umgesetzt (für das MVP optional). 40 `createCatch` in 7,9 s wurden alle gespeichert (Owner `s3.mjs`). Betroffen sind nur eigene Daten.
-- [x] **Brute Force**: PROJ-2 hat keinen eigenen Pfad, der Zugangsdaten prüft. `grep signIn|signUp|verifyOtp|password` über `src/lib/fishing`, `src/components/fishing`, `src/components/shell` und die neuen Seiten ergibt keinen Treffer. Die Login-Bremse aus PROJ-1 greift weiter: 5 Fehlversuche führen zur Sperre, gefälschtes `X-Forwarded-For` hilft nicht, die 6. Registrierung wird abgelehnt (Regressions-Lane: PROJ-1 AC-23, AC-24, AC-26).
-- [x] **Keine Kontoauflistung**: Für PROJ-2 heißt das, dass fremde und nicht existierende Kennungen gleich antworten (404 „Diese Seite gibt es nicht.“, `/?notice=session-gone`). Die Login-Meldungen sind laut Regressions-Lane für beide Fälle gleich (PROJ-1 AC-8, AC-16).
-- [x] **Keine Zugangsdaten oder Positionen in URLs**: Alle Formulare von PROJ-2 senden per `method="post"` mit `onSubmit` (`catch-form.tsx:214`, `end-session-sheet.tsx:211`, `session-backfill-form.tsx:198`, `session-edit-form.tsx:117`, `session-start-form.tsx:127`). Alle beobachteten Weiterleitungen enthalten nur UUIDs und die festen `notice`-Codes. Kein Code baut Koordinaten in `href`, `push` oder `searchParams`.
-- [x] **Keine Positionen in Server-Logs**: Die Logzeilen enthalten nur Bereich, Fehlercode und Fehlermeldung, nie `details` mit Zeilenwerten (`sessions.ts:65`, `catches.ts:83`, `overview.ts:23`, `(main)/page.tsx:72`). `logging.serverFunctions: false` in `next.config.ts` verhindert, dass Argumente von Server Actions geloggt werden.
-- [x] **Keine Geheimnisse im Client-Bundle**: `grep` über `.next/static` nach dem Service-Role-Key (JWT, 164 Zeichen), dem Secret-Key (41 Zeichen), `service_role`, `SUPABASE_SERVICE_ROLE_KEY` und `TRUSTED_CLIENT_IP_HEADER` ergibt jeweils 0 Treffer.
-- [x] **Keine sensiblen Daten in Antworten**: `/` und `loadMoreSessions` enthalten keine Koordinaten. Detailseite, Übersicht und Export enthalten kein `user_id` und keine E-Mail (Owner `s3.mjs`). Koordinaten erscheinen nur dem Besitzer in Detail, Bearbeiten und Export.
-- [x] **CSRF**: Eine Server Action mit `Origin: https://evil.example` wird abgewiesen (500, keine neue Session) (Owner `s2.mjs`).
-- [x] **Sicherheits-Header und Cache**: Auf `:3556` tragen alle Seiten `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: origin-when-cross-origin` und HSTS mit `includeSubDomains`. Angemeldet liefern `/`, `/start`, `/sessions/new`, `/sessions/backfill`, `/sessions/<id>` (auch 404), `/account` und `/account/export` `Cache-Control: private, no-store`.
+  - `<img src=x onerror=…>`, `"><svg onload=…>`, `<script>` und `'); drop table public.sessions; --` in Gewässer, Notiz, Artname und Köder werden roh gespeichert.
+  - Auf Übersicht, Detail, Bearbeiten und Fang erscheinen sie nur escaped. `dangerouslySetInnerHTML` gibt es in `src` nicht. Die Tabellen bleiben intakt.
+  - Belege: Security `t12-inject.cjs`; Zod-Schemas in `schemas.ts:37-248`.
+- [!] **Rate Limiting auf den PROJ-2-Actions und PostgREST** — NOT VERIFIED, nicht umgesetzt (für das MVP optional). 40 × `createCatch` in 8,5 s, 60 × `loadMoreSessions` und 60 × REST-GET liefen alle durch. Betroffen sind nur eigene Daten.
+- [x] **Brute Force**: PROJ-2 hat keinen Pfad, der Zugangsdaten prüft (Security-Lane). Die Login-Bremse aus PROJ-1 greift weiter (Regression `t4-throttle.mjs`):
+  - Der 6. Fehlversuch wird gesperrt, auch mit richtigem Passwort.
+  - 20 Adressen mit gefälschtem `X-Forwarded-For` werden ab dem 21. Versuch gesperrt, alle Versuche zählen unter `ip='untrusted'`.
+  - Die 6. Registrierung wird abgelehnt.
+  - Der Passwortcheck beim Konto löschen zählt mit (PROJ-1 AC-23, AC-24, AC-26, EC-11).
+- [x] **Keine Kontoauflistung**: Unbekannte Adresse und falsches Passwort ergeben beide wörtlich „E-Mail oder Passwort ist falsch.“ (Regression PROJ-1 AC-8). Für PROJ-2 antworten fremde und nicht existierende Kennungen auf den Seiten gleich (404, gleiche Länge).
+- [x] **Keine Zugangsdaten oder Positionen in URLs**: Alle 5 Formulare haben `method="post"`, im Code (`catch-form.tsx:214`, `end-session-sheet.tsx:211`, `session-backfill-form.tsx:198`, `session-edit-form.tsx:117`, `session-start-form.tsx:127`) und im SSR-HTML von :3556. Weiterleitungen enthalten nur UUIDs und feste `notice`-Codes. In 861 Kong-Zugriffslogs steht keine Koordinate.
+- [x] **Keine Positionen im Server-Log (Produktions-Build)**: Ein ausgelöster Fehlerpfad mit Koordinaten schreibt nur `[fishing] start-session failed: Error 23P01 …`, keine Koordinate (`start3556.txt`). Geloggt werden nur Code und Meldung (`sessions.ts:65-68`, `catches.ts:83-87`), dazu `logging.serverFunctions: false` in `next.config.ts:8`. Die Ausgabe des Dev-Servers ist NOT VERIFIED.
+- [x] **Keine Geheimnisse im Client-Bundle**: 63 Dateien in `.next/static` wurden nach den Werten von Service-Role-Key, Secret-Key, JWT-Secret, S3-Secret und DB-Passwort sowie nach den Namen `SERVICE_ROLE`, `SECRET_KEY` und `sb_secret_` durchsucht: 0 Treffer. `src/lib/supabase/admin.ts:5` ist `server-only`, PROJ-2 importiert es nicht.
+- [x] **Keine sensiblen Daten in Antworten**: `loadMoreSessions` liefert nur `id, startedAt, endedAt, waterName, catchCount`. Im HTML stehen weder `user_id` noch E-Mail. Der Export enthält kein `user_id` und keine fremden Daten. Fehlerantworten enthalten keine DB-Details.
+- [x] **Sicherheits-Header und Cache** (:3556): `/`, `/sessions/<id>`, `/edit`, `/backfill` und `/account/export` liefern `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: origin-when-cross-origin`, HSTS mit `includeSubDomains` und `Cache-Control: private, no-store` (Security; Regression `t7-prodcache.mjs`).
+- [x] **Garantien für eigene Daten über die Datenbank-Schnittstelle**:
+  - Es greifen: höchstens eine laufende Session, `sessions_no_overlap`, Dauer 1 min–48 h, `catch_outside_session`, `session_already_ended` sowie die Regeln für Art, Länge, Gewicht, Köder und Position (Security `t6-own-db.cjs`).
+  - **Lücke:** Zeiten in der Zukunft sind nur in der App verboten, siehe BUG-9.
 
 ## Regression (PROJ-1 Registrierung & Login)
 
-Kein Feature hat den Status „Deployed“. Regressionsziel war PROJ-1 (Approved), weil es Code und Daten mit PROJ-2 teilt. Die Regressions-Lane hat alle PROJ-1-Kriterien gegen die laufende App ausgeübt:
+Kein Feature hat den Status „Deployed“. Regressionsziel war PROJ-1 (Approved), weil es Code und Daten mit PROJ-2 teilt (`git diff --stat main..HEAD`: Konto-Seite und Export verschoben bzw. Version 2, neue Übersicht, `use-auth-action.ts` auf `use-server-action.ts`, Datenschutzseite, `layout.tsx`). Die Regressions-Lane hat alle PROJ-1-Kriterien gegen die laufende App ausgeübt (`reg/t1`–`t8`):
 
-- [x] **AC-1 bis AC-11, AC-13 bis AC-26 und AC-28 bis AC-34** bestehen. Belege: Skripte `t1.mjs` bis `t16.mjs` der Lane, z. B. Registrierung mit Mail, Link-Bestätigung, Login und Logout, Passwort zurücksetzen und ändern, Login-Bremse, Export v2 und Konto löschen.
-- [x] **EC-1 bis EC-5 und EC-7 bis EC-13** bestehen.
-  - EC-12 ist neu belegt: Ein gelöschtes Konto mit laufender Session und 3 Fängen hinterlässt 0/0/0/0 Zeilen.
-- [x] **Unverändert seit PROJ-1** laut `git diff --quiet main..HEAD`: `src/proxy.ts`, `src/lib/auth/**`, `src/app/auth/**`, `src/app/(auth)/**`, `src/app/reset-password` und `src/components/account/**`.
-- [x] **Der gemeinsame Formular-Baustein** (`use-server-action.ts`) wird von `use-auth-action.ts` genutzt. Das Verhalten der PROJ-1-Formulare zur Laufzeit ist unverändert.
-- [!] **PROJ-1 AC-12, AC-2/AC-27 (Darstellung), AC-8 (E-Mail bleibt stehen) und EC-5 (Button-Sperre)**: reine Client-Interaktion, kein Browser.
-- [!] **PROJ-1 EC-6 (Verbindungsabbruch)**: Supabase darf nicht gestoppt werden.
-- **Keine neuen Bugs aus der Regression.** `X-Powered-By: Next.js` ist das bekannte PROJ-1-BUG-16 (Low), keine Regression.
+- [x] **PROJ-1 AC-1, AC-3 bis AC-11, AC-13 bis AC-26 und AC-28 bis AC-34**: bestanden, z. B.:
+  - Registrierung mit Mail, Bestätigungslink und Login/Logout.
+  - Passwort zurücksetzen und ändern, inklusive Abmeldung des zweiten Geräts.
+  - Login-Bremse und Registrierungslimit.
+  - Export v2 mit PROJ-2-Sessions.
+  - Konto löschen mit 0 Zeilen in `auth.users`/`profiles`/`sessions`/`catches`.
+  - AC-31 und AC-32 sind über die Cron-Jobs `petrilog-auth-throttle-cleanup` und `petrilog-unconfirmed-accounts-cleanup` belegt, den Ablauf hat die Lane nicht abgewartet.
+- [x] **PROJ-1 EC-1 bis EC-5 und EC-7 bis EC-13**: bestanden. EC-12 ist neu belegt: Ein Konto mit laufender Session, Fang mit Position und nachgetragener Session hinterlässt überall 0 Zeilen. EC-13 wurde über ein per SQL zurückgesetztes `expires_at` geprüft.
+- [!] **PROJ-1 AC-2, AC-12, AC-27, EC-5 (Button-Sperre), AC-8 (Feld bleibt stehen) und EC-6**: reine Browser-Darstellung bzw. echter Verbindungsabbruch. Nur Quelle und Unit-Tests (`use-server-action.test.ts`) sind belegt.
+- [!] **PROJ-1 AC-10 und AC-22 (Zurück-Taste)**: Anmeldung über Wochen und bfcache sind nicht auslösbar. Belegt sind das Cookie mit 400 Tagen und `private, no-store` im Produktions-Build.
+- **Keine Regression gefunden.** Suite 368/368, Lint und Build sind grün.
 
 ## Unit-Tests aus /qa
 
-- [x] `src/lib/fishing/entry-id.test.ts` (EC-2, EC-3): 5 Tests prüfen `newEntryId`.
-  - Es entsteht eine v4-UUID, 200 Aufrufe ergeben 200 verschiedene Kennungen.
-  - Im Ersatzweg ohne `randomUUID` werden die Versions- und Variantenbits auch bei Bytes aus lauter 0xff bzw. 0x00 gesetzt.
-  - Die Bytes erscheinen in der richtigen Reihenfolge.
-  - **Rote Runde:** Alle Erwartungen umgekehrt (Version 5 statt 4, 199 statt 200, die Werte ohne gesetzte Bits) ergeben 5/5 rot. Wiederhergestellt ergeben sie 5/5 grün.
-- [x] `src/components/fishing/species-select.test.ts` (AC-21): 8 Tests prüfen `pickRecentSpecies`.
-  - Höchstens 3, Reihenfolge bleibt, Duplikate fallen weg.
-  - Ungültige Kennungen und geerbte Objektschlüssel (`toString`, `__proto__`) werden ignoriert und belegen keinen Platz.
-  - „Sonstige“ gilt wie jede Art, ohne Verlauf ist die Liste leer.
-  - **Rote Runde:** Alle Erwartungen umgekehrt ergeben 8/8 rot. Wiederhergestellt ergeben sie 8/8 grün.
-- Befehl: `npx vitest run src/lib/fishing/entry-id.test.ts src/components/fishing/species-select.test.ts`, Ergebnis 13/13 grün.
-- Nicht neu getestet, weil schon abgedeckt: `mapDbError`, `matchWaterNames`, `noticeFor`, die Formatierer und die Schemas.
+- [x] `src/lib/fishing/schemas.catch-window.test.ts` (AC-24, EC-6, EC-9): 5 Tests. Sie prüfen, dass Fangfenster und Endzeit-Regeln zusammenpassen:
+  - Für jede Fangzeit, die `checkCatchTime` bei einer laufenden Session annimmt, gilt: Sie liegt höchstens bei Start + 48 h, und das Ende „Zeit des letzten Fangs“ besteht `sessionTimeErrors` und `firstCatchOutside`. Geprüft über 6 Zeitpunkte von 1 h bis 200 h nach dem Start, mehr als 100 angenommene Fangzeiten.
+  - Kurz vor der Marke reicht „jetzt + 2 min“ nie über Start + 48 h.
+  - Nach der Marke nennt die Ablehnung Start + 48 h als Ende des Fensters.
+  - Eine beendete Session behält ihr eigenes Ende als Grenze.
+  - Ein Start, der über 48 h vor einen neueren Fang zurückgesetzt wird, wird abgelehnt.
+  - **Rote Runde:**
+    - Die Grenze in `checkCatchTime` wurde auf den Stand vor dem Fix zurückgesetzt (ohne 48-h-Deckel), und eine Erwartung wurde umgekehrt. Ergebnis: 5/5 rot, jeweils mit dem Fehler, den der Test abfangen soll, z. B. „expected 1789215060000 to be less than or equal to 1789214700000“.
+    - Danach wurde `schemas.ts` per `git checkout` wiederhergestellt: 5/5 grün.
+    - Hinweis: Während der rund 15 s der roten Runde hat der laufende Dev-Server die zurückgesetzte Grenze ausgeliefert. Die AC-24-Ergebnisse beider Lanes und die Owner-Gegenprobe `o1.mjs` P5 nach der Wiederherstellung passen zum wiederhergestellten Code. Eine Auswirkung ist nicht erkennbar.
+- Befehl: `npx vitest run src/lib/fishing/schemas.catch-window.test.ts`, Ergebnis 5/5 grün.
+- Nicht neu getestet, weil schon abgedeckt: die Spannen-Meldung beim Beenden (`sessions.test.ts`, im Diff angepasst), das wiederholte Löschen (`catches.test.ts:552`) und `endAllowedSpan` (reine Textvorlage).
 
 ## E2E-Tests
-- Status: **nicht ausgeführt** (für kritische Abläufe `/e2e-tests` ausführen).
+- Status: **nicht ausgeführt** (für kritische Abläufe `/e2e-tests` ausführen). Es gibt noch kein `tests/`-Verzeichnis.
 
 ## Not Verified In This Run
 
-- [!] **Darstellung im Browser**: Toasts, Sheet, Dialoge, 44-px-Touch-Ziele, Zahlentastatur, schwebende Leiste über der Tab-Leiste. `/qa` läuft ohne Browser, geprüft sind nur HTML, Payload und Quelltext.
+- [!] **Darstellung im Browser**: Toasts, Sheet „Session beenden“, Lösch- und Positionsdialoge, Arten-Dropdown mit „Zuletzt“, 44-px-Touch-Ziele, Zahlentastatur, schwebende Leiste und minütliches Hochzählen. `/qa` läuft ohne Browser. Geprüft sind HTML, Payload, Quelltext und Unit-Tests.
 - [!] **Cross-Browser** (Chrome, Firefox, Safari) und **Responsive** (375 / 768 / 1440 px): kein Browser, kein Viewport.
-- [!] **Echte Standortabfrage**: Rechte-Dialog des Browsers, tatsächliche 10-s-Grenze, Erklärung vor der ersten Abfrage auf einem Gerät (AC-8, AC-14, AC-25, AC-36, AC-37). Geprüft sind nur Code und `use-location.test.ts`, eine Geolocation-Engine gibt es hier nicht.
-- [!] **EC-3 mit echtem Verbindungsabbruch**: nicht provoziert, weil Dev-Server und Supabase nicht gestoppt werden dürfen. Belegt nur über Tests.
-- [!] **EC-12 „Seite hängt nicht spürbar“**: Gemessen ist nur die Serverzeit (134 ms), das Rendering im Browser nicht.
+- [!] **Echte Standortabfrage** (AC-6, AC-8, AC-14, AC-20, AC-25, AC-36, AC-37): Rechte-Dialog, tatsächliche 10-s-Grenze, Erklärung vor der ersten Abfrage. Es gibt hier keine Geolocation-Engine. Belegt sind Code und `use-location.test.ts`.
+- [!] **EC-3 und PROJ-1 EC-6 mit echtem Verbindungsabbruch**: nicht provoziert, weil Dev-Server und Supabase nicht gestoppt werden dürfen. Belegt nur über Tests.
+- [!] **Echter gleichzeitiger Wettlauf** zwischen zwei Geräten (EC-1, EC-2, EC-4, EC-10): Parallele Anfragen wurden geschickt, die Garantien im Schema sind bestätigt. Ein echter Wettlauf im selben Moment wurde nicht erzwungen.
+- [!] **EC-12 „Seite hängt nicht spürbar“**: Gemessen ist nur die Serverzeit (170 ms bzw. höchstens 110 ms), nicht das Rendern im Browser.
 - [!] **Tempo-Ziel unter 30 Sekunden am Smartphone** (Technische Anforderung): Das braucht einen Menschen mit Gerät.
-- [!] **Echter gleichzeitiger Wettlauf** zwischen Fang und Beenden (EC-4, EC-10): nicht provoziert. Stattdessen ist die Garantie im Schema bestätigt (`for share` gegen die Zeilensperre des Updates).
 - [!] **Rate Limiting auf den PROJ-2-Actions**: nicht umgesetzt (für das MVP optional).
+- [!] **Koordinaten in der Ausgabe des Dev-Servers**: nicht einsehbar. Belegt nur für das Log von :3556 und über `logging.serverFunctions: false`.
 - [!] **Browser-Konsole und Netzwerk-Tab**: Dafür braucht es DevTools.
+- [!] **PROJ-1-Laufzeiten** (Link 24 h / 1 h, Aufräumjobs nach 24 h / 7 Tagen, Anmeldung über Wochen): nicht abgewartet. Belegt sind die Konfiguration bzw. die Cron-Jobs.
 
 ## Bugs Found
 
-#### BUG-1: Laufende Session nimmt Fänge nach der 48-h-Marke an und lässt sich danach nicht mehr beenden
+### Stand der Bugs aus dem ersten Lauf (`68134f3`)
+
+| Bug | Stand | Beleg |
+|-----|-------|-------|
+| BUG-1 (Medium, EC-6) | **behoben** | Fänge nach Start + 48 h werden in App und DB abgelehnt. Eine vergessene Session lässt sich mit „Zeit des letzten Fangs“ beenden (48:00 h). Abnahme `t12`; Owner `o1.mjs` P5; neuer Unit-Test. |
+| BUG-2 (Low, AC-12) | **behoben** | Jede Ablehnung nennt die Spanne (Abnahme `t09`, `t12`). Neuer Randfall mit umgekehrter Spanne: BUG-7. |
+| BUG-3 (Low, EC-13) | **behoben** | REST `PATCH ended_at=null` ergibt 400 `session_already_ended` (Security `t6`/`t11`; Owner P4). |
+| BUG-4 (Low, AC-26) | **akzeptiert** | Begründung trägt, siehe unten. |
+| BUG-5 (Low, zusätzlicher Edge Case) | **behoben** | Das zweite Löschen führt zur Session mit „Fang gelöscht“ (Owner P2; Abnahme `t17`). |
+
+#### BUG-4: `createCatch` vertraut dem Client-Flag `sessionWasRunning` — akzeptiert
+- **Severity:** Low (nur eigene Daten). **Status:** akzeptiert, bewusst nicht behoben (`design.md` → „Runde 2 nach QA“, Entscheidungstabelle).
+- **Weiter nachstellbar:** Ein manipulierter „Fang nachtragen“ mit `sessionWasRunning: true` und Position speichert die Client-Koordinaten als `gps` (Owner `o1.mjs` P3: `1|1|gps`; Security `t9.cjs`). Ursache: `catches.ts:158`. Ohne das Flag gilt `session` bzw. `none` (AC-26 erfüllt).
+- **Bewertung durch QA: Die Begründung trägt.**
+  - Ein Nutzer kann dieselbe Änderung ohnehin direkt über die Datenbank-Schnittstelle machen: `PATCH` auf den eigenen Fang mit beliebigen Koordinaten und `position_source: gps` ergibt 200 (Owner `o2.mjs`).
+  - Eine Prüfung in der Action wäre also keine Grenze, die etwas schützt.
+  - Fremde Daten sind nicht betroffen (AC-32 bestanden).
+  - Betroffen ist nur die Ehrlichkeit der Herkunftsangabe in den eigenen Daten. Die fälscht der Nutzer nur gegen sich selbst.
+- **Vorbehalt:** Sollte die Herkunft je Dritten gegenüber etwas bedeuten (z. B. mit späteren Vereinsfunktionen oder Fangmeldungen), muss die Entscheidung neu getroffen werden, dann auch auf Datenbankebene.
+
+### Neue Bugs aus diesem Lauf
+
+#### BUG-6: Datenexport bricht ab 1001 Sessions ohne Hinweis ab
 - **Severity:** Medium
-- **Betrifft:** EC-6 (dazu AC-10, AC-24)
+- **Betrifft:** AC-35 (Art. 15, 20 DSGVO), `design.md` → Datenexport („eine Liste aller Sessions“)
 - **Ursache:**
-  - Die Fangzeit hat bei einer laufenden Session als obere Grenze nur „jetzt + 2 min“: `src/lib/fishing/schemas.ts:335` (`checkCatchTime`) und die Migration `20260930120000_sessions_catches.sql:225` (`coalesce(v_ended_at, now() + 2 min)`).
-  - Das Ende muss aber höchstens 48 h nach dem Start liegen (`sessions_duration_check`).
-  - Die Spec regelt den Fall nicht: AC-24 begrenzt eine laufende Session nur gegen die Zukunft.
+  - `src/app/(app)/(main)/account/export/route.ts:62-70` lädt alle Sessions samt Fängen in einer einzigen PostgREST-Abfrage, ohne Seitenabruf.
+  - PostgREST liefert höchstens `max_rows` Zeilen: `supabase/config.toml:18` setzt `max_rows = 1000`, gehostet gilt standardmäßig dieselbe Grenze.
 - **Steps to Reproduce:**
-  1. Session starten. Per „Bearbeiten“ den Start auf jetzt − 50 h setzen. Realistischer Weg dorthin: eine vergessene Session läuft über 48 h, und AC-9 leitet einen neuen Start genau dorthin um.
-  2. „Fang eintragen“ mit Uhrzeit jetzt. Der Fang wird gespeichert (`catch-saved`).
-  3. „Session beenden“ versuchen:
-     - „Jetzt“ und „Zeit des letzten Fangs“ ergeben „Eine Session dauert höchstens 48 Stunden (bis …).“
-     - Eine eigene Uhrzeit innerhalb der 48 h ergibt „Der Fang um … läge außerhalb der Session.“
-  4. Erwartet: Die Session lässt sich beenden, oder der Fang nach der 48-h-Marke wird gar nicht erst angenommen.
-  5. Tatsächlich: Kein Weg führt zum Ende. Der Nutzer muss erst den Fang oder den Start bearbeiten bzw. löschen (Workaround). Owner `s4.mjs`.
-- **Priority:** vor dem Deployment beheben. Das braucht eine Vertragsentscheidung (`/refine PROJ-2`).
+  1. Nutzer mit 1104 Sessions (Abnahme `t23`, per SQL angelegt).
+  2. `GET /account/export`.
+  3. Erwartet: alle 1104 Sessions mit ihren Fängen.
+  4. Tatsächlich: `version 2` mit genau 1000 Sessions. Die ältesten 104 fehlen, ohne Hinweis in der Datei.
+- **Warum Medium, nicht High:** Das betrifft nur Nutzer mit mehr als 1000 Sessions. Die Daten selbst gehen nicht verloren. Aber das Recht auf Auskunft und Übertragbarkeit wird für diese Nutzer stillschweigend unvollständig erfüllt.
+- **Priority:** vor dem ersten gehosteten Betrieb beheben (`/build`, Export seitenweise laden). Dieselbe Grenze trifft auch die Vorschläge für Gewässernamen (`queries.ts:23`, höchstens 1000 Zeilen, laut Lane gewollt).
 
-#### BUG-2: Meldungen beim Beenden nennen die erlaubte Spanne nicht
+#### BUG-7: Meldung beim Beenden nennt eine umgekehrte Spanne
 - **Severity:** Low
-- **Betrifft:** AC-12
+- **Betrifft:** AC-12 („verständliche Meldung, die die erlaubte Spanne nennt“), Folge des Fixes für BUG-2
+- **Ursache:** `src/lib/fishing/actions/sessions.ts:371-373`. `spanFrom` (Start + 1 min bzw. letzter Fang) kann nach `spanTo` (jetzt, abgerundet auf die Minute, bzw. Start + 48 h) liegen. Das wird nicht abgefangen.
 - **Steps to Reproduce:**
-  1. „Session beenden“ → „Eigene Uhrzeit“ vor dem Start bzw. in der Zukunft bzw. vor dem letzten Fang.
-  2. Erwartet: eine Meldung am Feld, die die erlaubte Spanne nennt (AC-12).
-  3. Tatsächlich: „Das Ende muss nach dem Start liegen.“ / „Dieser Zeitpunkt liegt in der Zukunft.“ / „Der Fang um … läge außerhalb der Session.“ Die Spanne steht nur als fester Hinweis im Sheet (`endSpanHint`, `end-session-sheet.tsx`). Nur die 48-h-Meldung nennt eine Grenze.
-- **Priority:** im nächsten Durchgang (`/build`, Meldungstexte in `src/lib/fishing/messages.ts` und der Endzeit-Prüfung).
+  1. Session starten und in derselben Minute „Session beenden“ → „Jetzt“ (oder eigene Uhrzeit = Start).
+  2. Erwartet: eine verständliche Meldung, z. B. dass eine Session mindestens 1 Minute dauert, ab wann ein Ende möglich ist.
+  3. Tatsächlich: „Das Ende muss nach dem Start liegen. Möglich ist ein Ende zwischen 30.09., 02:43 und 30.09., 02:42.“ (Owner `o1.mjs` P1; Abnahme E-1; Security „Auch bemerkt“).
+  4. Gleiches Bild, wenn der letzte Fang in der 2-Minuten-Toleranz nach „jetzt“ liegt: „zwischen 02:50 und 02:48“.
+- **Priority:** im nächsten Durchgang (`/build`).
 
-#### BUG-3: Beendete Session lässt sich über die Datenbank-Schnittstelle wieder öffnen
-- **Severity:** Low (nur eigene Daten)
-- **Betrifft:** EC-13; `design.md` → Datenmodell („Beendete Sessions bekommen nie wieder ein leeres Ende“)
+#### BUG-8: „Session starten“ meldet „Keine Verbindung“, wenn eine eigene Session in der Zukunft endet
+- **Severity:** Low (löst sich nach höchstens 2 Minuten von selbst)
+- **Betrifft:** AC-6 / AC-16 (Überschneidung) und EC-3 (die Netzwerkmeldung ist für echte Verbindungsabbrüche gedacht)
+- **Ursache:**
+  - Ein Ende bis 2 Minuten in der Zukunft ist erlaubt (Toleranz), beim Nachtragen und über „Zeit des letzten Fangs“ nach einem Fang mit jetzt + 2 min.
+  - Die neue Session überschneidet sich dann mit dieser, und die DB lehnt mit 23P01 `sessions_no_overlap` ab.
+  - `startSession` (`sessions.ts:224-243`) behandelt nur `duplicate-id` und `running-exists`. Der Fehler wird geworfen, und `run()` macht daraus die Netzwerkmeldung (`sessions.ts:78-80`).
 - **Steps to Reproduce:**
-  1. Als angemeldeter Nutzer ohne laufende Session `PATCH /rest/v1/sessions?id=eq.<beendete>` mit `{"ended_at": null}` senden, mit eigenem Token.
-  2. Erwartet: Ablehnung.
-  3. Tatsächlich: `[{"ended_at":null}]`, die Session läuft wieder.
-  - Die Umsetzungsnotizen in `design.md` nennen die Abweichung. Im Schema fehlt eine Sperre, etwa ein Trigger, der `ended_at` nicht von gesetzt auf leer wechseln lässt.
-- **Priority:** Nice to have (`/build`, kleine Migration).
+  1. Session nachtragen mit Ende jetzt + 1 min (oder laufende Session: Fang mit jetzt + 2 min, dann „Zeit des letzten Fangs“ beenden).
+  2. Sofort „Session starten“.
+  3. Erwartet: Start ab dem Ende der anderen Session möglich oder eine Überschneidungsmeldung wie in AC-16.
+  4. Tatsächlich: „Keine Verbindung. Bitte versuche es erneut.“ (Abnahme E-2 `t21`; Security „Auch bemerkt“). Nach dem Ende der anderen Session geht es wieder.
+- **Priority:** im nächsten Durchgang (`/build`). Zusammen mit BUG-9 lösen, weil beide an der fehlenden Zuordnung von `overlap` in `startSession` hängen.
 
-#### BUG-4: `createCatch` vertraut dem Client-Flag `sessionWasRunning`
-- **Severity:** Low (nur eigene Daten)
-- **Betrifft:** AC-26
-- **Ursache:** `src/lib/fishing/actions/catches.ts:216-217` übernimmt das Flag aus der Anfrage, und `catches.ts:155` speichert dann die mitgeschickte Position als `gps`, auch in einer beendeten Session.
+#### BUG-9: Datenbank nimmt Session-Zeiten in der Zukunft an (über die eigene Datenbank-Schnittstelle)
+- **Severity:** Low (nur eigene Daten, nur über eine manipulierte direkte Anfrage)
+- **Betrifft:** AC-15 / EC-9 auf Datenbankebene. `design.md` nennt „keine Zeiten in der Zukunft“ als Voraussetzung der Überschneidungsregel, die Migration setzt sie aber nicht durch (`20260930120000_sessions_catches.sql:33-40`). Nur die App prüft das (`schemas.ts:307-310`).
 - **Steps to Reproduce:**
-  1. „Fang nachtragen“ in einer beendeten Session als manipulierte Anfrage mit `sessionWasRunning: true` und einer Position senden.
-  2. Erwartet: Die Kopie der Session-Position (`session`) bzw. `none` wird gespeichert (AC-26).
-  3. Tatsächlich: Die Client-Koordinaten werden als `gps` gespeichert (Abnahme-Lane: lat 1, `gps`).
-  - Hinweis: Über PostgREST kann ein Nutzer seine eigenen Zeilen ohnehin frei schreiben, etwa die Herkunft oder eine Startzeit in der Vergangenheit. Die Tabellen haben `insert`/`update` für `authenticated`. Das betrifft die Datenqualität der eigenen Daten, nicht fremde Daten.
-- **Priority:** Nice to have. Zum Beispiel das Flag serverseitig ableiten (Session war beim Öffnen laufend = Fangzeit liegt vor dem jetzigen Ende und das Ende ist sehr frisch) oder bei beendeten Sessions nur annehmen, wenn das Ende nach dem Öffnen des Formulars liegt.
-
-#### BUG-5: Zweites Löschen desselben Fangs meldet „Diese Session gibt es nicht mehr.“
-- **Severity:** Low
-- **Betrifft:** zusätzlicher Edge Case zu AC-28 / EC-5
-- **Steps to Reproduce:**
-  1. Einen Fang löschen, z. B. in einem zweiten Tab, der die Fang-Seite noch offen hat.
-  2. Denselben Fang noch einmal löschen.
-  3. Erwartet: „Fang gelöscht“ oder ein Hinweis, dass der Fang nicht mehr existiert, und die Detailansicht der Session.
-  4. Tatsächlich: Weiterleitung auf `/?notice=session-gone`, obwohl die Session noch existiert (Owner `s5.mjs`; `deleteCatch` in `catches.ts` leitet bei nicht gefundenem Fang immer auf `SESSION_GONE`).
-- **Priority:** Nice to have (`/build`).
+  1. Mit eigenem Token per PostgREST eine beendete Session von +24 h bis +25 h bzw. eine laufende Session mit Start in +5 h anlegen: 201 (Security `t6-own-db.cjs`).
+  2. Folge: Solange sie existiert, antwortet „Session starten“ mit „Keine Verbindung …“ (siehe BUG-8). Eine laufende Session mit zukünftigem Start lässt sich nicht beenden. Über „Bearbeiten“ bzw. „Löschen“ lässt sich das wieder richten.
+- **Priority:** Nice to have (`/build`, kleine Migration, z. B. ein Trigger mit Toleranz von 2 Minuten).
 
 #### Auch bemerkt (kein Bug)
-- `/privacy` sagt, die Standortabfrage komme „beim Speichern eines Fangs“. Bei „Fang nachtragen“ fragt die App nicht ab. Der Text übertreibt also leicht in die sichere Richtung und steht so im Design.
-- In `.next/dev/server/app/(app)/account/…` und `(app)/page` liegen noch Manifeste der alten Pfade. Das sind Reste des Dev-Builds ohne Wirkung zur Laufzeit.
-- `X-Powered-By: Next.js` (PROJ-1 BUG-16, Low) ist unverändert.
+- **Kennung existiert ja/nein erkennbar** (Security): `startSession`/`backfillSession` mit einer fremden, bekannten UUID antworten „Bitte prüfe deine Eingaben.“, mit einer freien UUID wird angelegt. Das folgt aus den Kennungen, die der Browser für EC-2 erzeugt. Eine fremde UUID ist nicht zu erraten (122 Zufallsbits), und die Antwort verrät keinen Inhalt. Die Seiten selbst antworten für fremde und freie Kennungen gleich. Kein Handlungsbedarf.
+- PostgREST-Fehler an anon nennen Tabellen- und Rechtenamen. Das ist Supabase-Standard, Daten fließen nicht ab.
+- `session_already_ended` fehlt in der Fehlerzuordnung (`db-errors.ts`). Das ist nur über die REST-Schnittstelle erreichbar, die App setzt das Ende nie auf leer.
+- `src/components/auth/use-auth-action.ts` hat keinen eigenen Test mehr, abgedeckt ist er über `use-server-action.test.ts` (Regressions-Lane).
+- Der Dev-Server sendet für geschützte Seiten `no-cache, must-revalidate`, der Produktions-Build `private, no-store`. Maßgeblich ist der Produktions-Build.
+- Zu Beginn dieses Laufs lief noch ein alter `next start -p 3556` (gestartet 01:22, vor dem Commit `43821db`). Er wurde beendet und durch einen Server des aktuellen Builds ersetzt. Alle Prüfungen auf :3556 liefen gegen den aktuellen Build.
 
 ## Summary
-- **Acceptance Criteria:** 39/40 bestanden, 1 fehlgeschlagen (AC-12, Low). Kein AC ist ganz NOT VERIFIED. Die browserabhängigen Teile stehen oben unter „Not Verified“.
-- **Edge Cases:** 11/13 bestanden, 2 fehlgeschlagen (EC-6 Medium, EC-13 Low). Dazu ein zusätzlicher Edge Case fehlgeschlagen (BUG-5, Low).
-- **Bugs Found:** 5 insgesamt (0 Critical, 0 High, 1 Medium, 4 Low)
-- **Security:** 11/12 Prüfungen belegt, 1 NOT VERIFIED (Rate Limiting auf den PROJ-2-Actions: nicht umgesetzt, optional für das MVP).
-- **Regression PROJ-1:** keine Regression. Die Suite ist grün (353/353), Build und Lint sind grün.
-- **Production Ready:** JA
-- **Recommendation:** Deploy möglich. BUG-1 vorher per `/refine PROJ-2` entscheiden und beheben lassen (empfohlen), die Low-Bugs im nächsten Durchgang.
+- **Acceptance Criteria:** 38/40 bestanden, 1 fehlgeschlagen, 1 NOT VERIFIED.
+  - Fehlgeschlagen: AC-35 (BUG-6, Medium).
+  - NOT VERIFIED: AC-37, Browser-Reihenfolge. Code und Test sind belegt.
+  - AC-12 besteht, hat aber einen Randfall mit Low-Bug (BUG-7).
+- **Edge Cases:** 13/13 bestanden, darunter EC-6 und EC-13 (früher fehlgeschlagen). Zusätzliche Edge Cases: 5 bestanden, 2 fehlgeschlagen (BUG-7, BUG-8, beide Low).
+- **Bugs aus dem ersten Lauf:** BUG-1, BUG-2, BUG-3 und BUG-5 sind behoben, BUG-4 ist akzeptiert (Begründung trägt).
+- **Neue Bugs:** 4 insgesamt (0 Critical, 0 High, 1 Medium, 3 Low): BUG-6 Medium, BUG-7, BUG-8 und BUG-9 Low.
+- **Security:** 11/13 Prüfungen belegt, 2 NOT VERIFIED:
+  - Rate Limiting auf den PROJ-2-Actions (nicht umgesetzt, optional für das MVP).
+  - Koordinaten in der Ausgabe des Dev-Servers (nicht einsehbar).
+- **Regression PROJ-1:** keine Regression. Suite 368/368, Lint und Build sind grün.
+- **Production Ready:** JA. Es gibt keine Critical- oder High-Bugs, und die Runtime-Kriterien wurden gegen die laufende App ausgeübt.
+- **Recommendation:** Deploy möglich. BUG-6 (Export ab 1001 Sessions) vor dem ersten gehosteten Betrieb per `/build` beheben, BUG-7 bis BUG-9 im nächsten Durchgang.
 
-> „Production Ready: JA“ heißt: *keine Critical/High-Bugs*. Es heißt **nicht**, dass alles geprüft wurde. Offen sind die Browser-Darstellung, die echte Standortabfrage, das 30-Sekunden-Ziel am Smartphone und der echte Verbindungsabbruch. Diese Punkte brauchen einen Menschen oder `/e2e-tests`.
+> „Production Ready: JA“ heißt: *keine Critical/High-Bugs*. Es heißt **nicht**, dass alles geprüft wurde. Offen sind die Browser-Darstellung, die echte Standortabfrage (inkl. AC-37), das 30-Sekunden-Ziel am Smartphone und der echte Verbindungsabbruch. Diese Punkte brauchen einen Menschen oder `/e2e-tests`.
 
-**Aufräumen:** Alle `qa-p2-*`-Testkonten sind gelöscht. Die Zählabfrage danach ergibt 0 Konten `qa-p2-%`, 0 Sessions, 0 Fänge und 0 Zeilen in `auth_throttle_events`. Schlüssel- und Cookie-Dateien im Scratchpad sind gelöscht. Der Produktionsserver auf `:3556` ist gestoppt.
+**Aufräumen:**
+- Alle `qa-p2r-*`-Testkonten sind gelöscht.
+- Zählabfrage danach: 0 Konten `qa-p2r-%`, 0 verwaiste Profile, Sessions und Fänge, 0 Zeilen in `auth_throttle_events`.
+- Schlüssel- und Cookie-Dateien sind aus allen Scratchpad-Ordnern gelöscht. Eine Suche nach Tokens und Schlüsseln findet nur noch Code.
+- Der Produktionsserver auf :3556 ist gestoppt. Der Dev-Server auf :3553 läuft weiter.
+- In Mailpit liegen noch die Mails der Regressions-Konten.
