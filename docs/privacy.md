@@ -63,6 +63,7 @@ Frist: **30 Tage** (DSG Art. 25 Abs. 7). Das ist die strengere der beiden Friste
 - [ ] Impressum (DDG) bzw. Anbieterangaben (UWG CH) vor dem ersten gehosteten Betrieb
 - [ ] Platzhalter der Datenschutzerklärung um Standort- und Fangbuch-Daten ergänzen (PROJ-2)
 - [ ] Platzhalter der Datenschutzerklärung um den Wetterabruf über Open-Meteo ergänzen (PROJ-3)
+- [ ] Budget-Protokoll des Wetterabrufs (`weather_fetch_log`, höchstens 60 min) steht nicht im Datenexport, wie das Protokoll der Login-Bremse. Vor dem ersten gehosteten Betrieb bei `/dsgvo` bewerten, ob es in den Export gehört (PROJ-3 QA BUG-10)
 - [ ] Betreiber, Serverstandort und Nutzungsbedingungen von Open-Meteo vor dem gehosteten Betrieb prüfen und oben eintragen; die kostenlose Nutzung ist nur nicht-kommerziell erlaubt (PROJ-3)
 
 ## Für eine Anwältin / einen Datenschutzbeauftragten

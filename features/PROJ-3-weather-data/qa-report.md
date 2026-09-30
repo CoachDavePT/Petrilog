@@ -1,158 +1,159 @@
 # QA-Testergebnisse: PROJ-3 Automatische Wetterdaten
 
-**Getestet:** 2026-09-30 (erster `/qa`-Lauf, Stand `43f8ae4`)
-**App-URL:** http://localhost:3553 (`probe.kind: http`, Dev-Server `npm run dev`, vor dem Fan-out neu gestartet, weil der vorherige Dev-Server intern abgestürzt war und 500 lieferte). Lokale Supabase in Docker (API `127.0.0.1:55321`). Open-Meteo war erreichbar und wurde echt angefragt.
-**Tester:** QA Engineer (AI). Geprüft haben drei unabhängige `qa-engineer`-Läufe, die den Bau nicht kannten: Abnahme (Step 2), Security (Step 3), Regression (Step 4 + Suite-Teil von Step 5). Der `/qa`-Owner hat die Suiten einmal vor dem Fan-out laufen lassen, den Unit-Test aus Step 6 geschrieben und die Ergebnisse zusammengeführt.
-**Autonomer Lauf:** Der Nutzer hat den Lauf vorab freigegeben („bei /qa gehen wir nach deinen Empfehlungen vor“). Die Priorisierung der Bugs (Step 8) steht als Empfehlung unten und wird so umgesetzt.
-**Umfang:** `full` — erster `/qa`-Lauf für PROJ-3, es gab keinen früheren Bericht.
+**Getestet:** 2026-09-30, zweiter `/qa`-Lauf (Re-Verifikation, Stand `50b4e17`). Der erste Lauf (Stand `43f8ae4`, Bericht in `54a2007`) fand BUG-1 bis BUG-5.
+**App-URL:** http://localhost:3553 (`probe.kind: http`, Dev-Server `npm run dev`). Lokale Supabase in Docker (API `127.0.0.1:55321`). Open-Meteo war erreichbar und wurde echt angefragt (insgesamt etwa 15 Anfragen in diesem Lauf, das Kontingent wurde geschont).
+**Tester:** QA Engineer (AI). Drei unabhängige `qa-engineer`-Läufe, die den Bau nicht kannten: Abnahme (Step 2), Security (Step 3), Regression (Step 4 + Suite-Teil von Step 5), jeweils mit eigenem Skriptordner (`scratchpad\r2-acc`, `r2-sec`, `r2-reg`). Der `/qa`-Owner hat die Suiten einmal vor dem Fan-out laufen lassen und die Ergebnisse zusammengeführt.
+**Autonomer Lauf:** Der Nutzer hat den Lauf vorab freigegeben („bei /qa gehen wir nach deinen Empfehlungen vor“).
 
-> Legende: `[x]` in diesem Lauf geprüft (mit Beleg) · `[ ] BUG` als fehlerhaft belegt · `[!] NOT VERIFIED` in diesem Lauf nicht prüfbar (mit Grund)
->
-> **Methode der Lanes:** Testnutzer über die lokale Auth-Admin-API, Session-Cookies selbst gebaut, Server Actions per HTTP (`Next-Action`-Header, ID aus dem ausgelieferten Client-Chunk), direkte Zugriffe über PostgREST mit dem Zugang des jeweiligen Testnutzers und `psql` im Container. Alle Testnutzer der Lanes wurden am Ende samt Daten gelöscht.
+**Umfang: Re-Verifikation — `git diff --stat 54a2007..HEAD`.** Geänderte Produktionsdateien:
+- `supabase/migrations/20260930180000_weather_budget.sql` (neu)
+- `src/lib/weather/actions.ts`
+- `src/components/weather/weather-auto-fill.tsx`
+- `src/app/(app)/sessions/[id]/catches/[catchId]/page.tsx`
+- `src/components/fishing/session-list.tsx` (PROJ-2-Code)
+- dazu 2 Testdateien, `design.md`, `docs/data-model.md`, `docs/privacy.md`
+
+Weil der Diff eine Migration, eine neue Entität im Datenmodell und PROJ-2-Code berührt, liefen alle drei Lanes in voller Breite. Neu geprüft wurden die offenen Bugs, alle AC/EC, deren Dateien im Diff liegen, und die Regression von PROJ-1 und PROJ-2. **Übernommen** (nicht neu ausgeübt) sind die übrigen Ergebnisse aus Lauf 1; sie sind unten mit „unverändert seit Lauf 1“ markiert und nicht neu abgehakt.
+
+> Legende: `[x]` in diesem Lauf geprüft (mit Beleg) · `[ ] BUG` als fehlerhaft belegt · `[!] NOT VERIFIED` in diesem Lauf nicht prüfbar (mit Grund) · `— unverändert seit Lauf 1` übernommen, nicht neu ausgeübt
 
 ### Automatisierte Tests und Build (einmal vor dem Fan-out)
-- [ ] BUG **Unit-Suite `npm test`, Lauf 1:** 30 Dateien, 488 bestanden, **1 fehlgeschlagen** (`src/components/fishing/session-list.test.tsx:99`, „shows the returned message as a warning and keeps what is loaded; a retry works“) — `suite-run.txt`. Siehe BUG-1.
-- [x] **Unit-Suite `npm test`, Lauf 2:** 489 bestanden, 0 fehlgeschlagen — `suite-run-2.txt`. Die Einzeldatei lief danach 5× grün.
-- [x] **Lint** `npm run lint`: exit 0, keine Befunde (Owner, vor dem Fan-out).
-- [x] **Produktions-Build** `npm run build`: exit 0, TypeScript fehlerfrei, 18 Routen plus Proxy (Build von 06:50 auf Stand `52788e7`; seitdem nur ein Test und die INDEX-Zeile geändert).
-- [x] **Migrationen:** Alle 7 Migrationen laufen in einer Transaktion mit `ROLLBACK` auf einer frisch aufgebauten `public`-Schema-Kopie fehlerfrei durch, auch auf gefüllten Tabellen. Die Nachbefüllung setzt Einträge mit Position auf `pending`, ohne auf `no_position` (Regression, `replay.sql`; `20260930160000_weather.sql:45-51`).
-- [x] **Neuer Unit-Test aus diesem Lauf:** `src/lib/weather/actions.test.ts` → „sends at most 4 requests to Open-Meteo at the same time“, 16/16 grün. Rote Runde gemacht: Mit `MAX_PARALLEL_REQUESTS = 6` schlägt genau dieser Test fehl.
-- E2E: Es gibt kein `tests/`-Verzeichnis, also nichts auszuführen.
+- [x] **Unit-Suite `npm test`:** 30 Dateien, 499 bestanden, 0 fehlgeschlagen — `suite-run-r2.txt` (Start 07:16:49).
+- [x] **Lint** `npm run lint`: exit 0 — `lint-r2.txt`.
+- [x] **Produktions-Build** `npm run build`: exit 0, TypeScript fehlerfrei (Owner, nach den Fixes auf `50b4e17`).
+- [x] **Migrationen:** Alle 8 Migrationen in einer Transaktion mit `ROLLBACK` auf frischem `public`-Schema mit Daten eingespielt, exit 0. `claim_weather_budget` (4 × 50 → `true`, dann `false`), Cron-Job `petrilog-weather-fetch-log-cleanup` löscht nur Zeilen älter als 60 min, FK-Kaskade bis `weather_fetch_log` (Regression, `r2-reg\replay.sql`). Lokal ist die Migration in `schema_migrations` eingetragen, der Cron-Job lief um 05:15 UTC mit `succeeded`.
+- [x] **Einzeldateien (Gegenprobe):** `actions.test.ts` + `weather-auto-fill.test.tsx` 32/32 grün (Abnahme).
+- E2E: kein `tests/`-Verzeichnis, nichts auszuführen.
 
 ## Acceptance Criteria
 
 #### Wetter abrufen
-- [x] **AC-1**: Laufende Session mit Position → `ok`, `weather_hour` = volle Stunde, alle 7 Werte gesetzt (Abnahme, DB-Abfrage). Der Trigger setzt beim Anlegen `pending` (`20260930160000_weather.sql:163-188`).
-- [x] **AC-2**: Fang mit GPS → `ok` zur Fangzeit; Fänge mit von der Session übernommener Position behandelt der Trigger gleich (Abnahme; Migration `:163-176`).
-- [x] **AC-3**: Nachgetragene Session von 2019 → `ok` aus dem Archiv (22,3 °C, Code 63). Endpunkt-Wahl `core.ts:59-61` (Abnahme).
-- [x] **AC-4**: 12:29Z → 12:00Z, 12:30Z → 13:00Z (DB). Werte gleich einer direkten Open-Meteo-Abfrage. `core.ts:36-38` (Abnahme).
-- [x] **AC-5**: Die Speicher-Actions aus PROJ-2 sind unverändert (`git diff --stat main..HEAD -- src/lib/fishing/actions/` leer); das Wetter holt erst die Detailansicht (`sessions/[id]/page.tsx:190`). Die Detailseite antwortet auch mit 60 offenen Fängen in 0,9 s mit „Wetter wird abgerufen …“ (Abnahme).
-- [x] **AC-6**: „Wetter wird abgerufen …“ steht im server-gerenderten HTML; das Nachladen per `router.refresh()` (`weather-auto-fill.tsx:31-36`) ist durch `weather-auto-fill.test.tsx` belegt. Das sichtbare Einblenden im Browser ist NOT VERIFIED (kein Browser).
-- [x] **AC-7**: Ohne Position → `no_position`, im HTML „Ohne Wetterdaten“ und „Ohne Position wird kein Wetter abgerufen.“, kein Button (Abnahme; `actions.ts:74`).
+- [x] **AC-1**: `startSession` über die App → sofort `pending`; Nachholen → `ok`, Start 05:22Z → Stunde 05:00Z, alle 7 Werte; HTML „Wetter beim Start“ (Abnahme r2).
+- [x] **AC-2**: Fang mit GPS über `createCatch` → `pending`, dann `ok` zur Stunde 05:00Z; 60 Fänge mit Position von der Session → `ok` (Abnahme r2).
+- [x] **AC-3**: `backfillSession` 2019-06-15 mit Position → `ok`, Stunde 04:00Z, 20,4 °C (Abnahme r2).
+- **AC-4** — unverändert seit Lauf 1 (12:29Z → 12:00Z, 12:30Z → 13:00Z); `core.ts` nicht im Diff.
+- [x] **AC-5**: `git diff --stat 54a2007..HEAD -- src/lib/fishing/` leer; nach dem Speichern sofort `pending` (212 ms), das Wetter kommt über die getrennte Action (Abnahme r2).
+- [x] **AC-6**: HTML vorher „Wetter wird abgerufen …“ mit `needed:true`, danach die Kacheln; `router.refresh()` per Unit-Test belegt. Sichtbares Einblenden im Browser NOT VERIFIED. Randfall zweites Gerät → BUG-6.
+- **AC-7** — unverändert seit Lauf 1; die Regel `no_position` liegt im Trigger (nicht im Diff).
 
 #### Fehlschlag & Nachholen
-- [x] **AC-8**: Session von 1935 (Archiv antwortet 400) → `failed`, Eintrag bleibt, im HTML „Wetter konnte nicht abgerufen werden.“; Timeout und Nicht-200 in `open-meteo.ts:63-80` (Abnahme).
-- [x] **AC-9**: Offene Einträge werden beim Öffnen nachgeholt (live), fehlgeschlagene nach 60 s (`format.ts:92`). Altbestand vor PROJ-3: Die Migration setzt ihn auf `pending`, im Replay auf gefüllten Tabellen belegt (Regression, `replay.sql`); `pending` wird immer nachgeholt (Abnahme). Siehe auch BUG-3 (Fang-Seite bei mehr als 50 offenen Einträgen).
-- [x] **AC-10**: Button gesperrt während des Abrufs, Warnung bei erneutem Fehlschlag (`retry-weather-button.tsx:30,36,40`; `weather-auto-fill.test.tsx` 3/3); live setzt ein Knopfdruck nach mehr als 10 s `weather_attempted_at` neu (Abnahme). Zur Warnung in der Abkühlzeit siehe BUG-4.
+- [x] **AC-8**: Session von 1935 → `{"filled":0,"failed":true}`, Zeile `failed`, bleibt erhalten; HTML „Wetter konnte nicht abgerufen werden.“ (Abnahme r2).
+- [x] **AC-9**: `pending` wird immer nachgeholt; `failed` innerhalb 60 s kein Versuch und kein Budgetverbrauch, bei 61 s neuer Versuch (Abnahme r2, `t7.mjs`). Altbestand: Nachbefüllung im Replay belegt (Regression r2). Randfall Budget → BUG-8.
+- [x] **AC-10**: manuell innerhalb 10 s kein Versuch, nach 15 s neuer Versuch mit Warnung bei `failed`; Knopf gesperrt während des Abrufs; bei aufgebrauchtem Budget „Wetter gerade nicht verfügbar …“ (Abnahme r2). Randfall Fang-Seite → BUG-7.
 
 #### Änderungen am Eintrag
-- [x] **AC-11**: Nur Name, Notiz, Endzeit geändert → Wetter bleibt. Startzeit 10:10 → 08:40 → `pending`, Werte gelöscht, neu geholt für 09:00Z (Abnahme, REST + DB).
-- [x] **AC-12**: Länge und Köder geändert → Wetter bleibt. Fangzeit auf 13:45 → Reset, danach 14:00Z (Abnahme).
-- [x] **AC-13**: Session-Position entfernt → `no_position`, Werte gelöscht; ein Fang mit eigener Kopie behält `ok`. Fang-Position entfernt → `no_position` (Abnahme; Regression AC-38 über die App).
+- **AC-11, AC-12, AC-13** — unverändert seit Lauf 1; Trigger und Speicher-Actions nicht im Diff. EC-1 und EC-2 wurden in diesem Lauf mit echten Races erneut geprüft (siehe unten).
 
 #### Anzeige
-- [x] **AC-14**: HTML: „Wetter beim Start“ vor „Fänge“, „16,0 °C“, „1026 hPa“, „13 km/h O“, „100 %“, „0,0 mm“, „Bewölkt“, „Werte für 12:00 Uhr · Open-Meteo“ (Abnahme). Farben und Raster: NOT VERIFIED (kein Browser).
-- [x] **AC-15**: Fang-Seite mit „Wetter beim Fang“, 6 Kacheln, „Werte für 15:00 Uhr“ (Abnahme, HTML).
-- [x] **AC-16**: `failed` → „Ohne Wetterdaten“, Grund, Button (Zähler 1); `no_position` → kein Button (Abnahme; `weather-section.tsx:27,78-87`).
-- [x] **AC-17**: Übersicht: `failed`, `no_position` und `pending` älter als 5 min tragen „ohne Wetter“, `pending` jünger als 5 min und `ok` nicht. Fangzeile: nur beim Fang ohne Position `aria-label="ohne Wetter"` (Abnahme; `format.ts:79`).
-- [x] **AC-18**: `session-forms.test.tsx:130-135` im Owner-Lauf grün; `session-backfill-form.tsx:220-226`. Das Umschalten im Browser: NOT VERIFIED.
+- **AC-14, AC-16, AC-17, AC-18** — unverändert seit Lauf 1; Anzeige-Bausteine nicht im Diff.
+- [x] **AC-15**: Fang-Seite „Wetter beim Fang · Luft 13,6 °C · Luftdruck 1025 hPa · Wind 16 km/h SO · Bewölkung 100 % · Niederschlag 0,0 mm · Wetter Bewölkt · Werte für 07:00 Uhr · Open-Meteo“ (Abnahme r2, HTML).
 
 #### Zugriffsschutz & Datenschutz
-- [x] **AC-19**: B sieht per REST weder Sessions noch Fänge von A (`[]`), PATCH/DELETE ändern 0 Zeilen, INSERT in As Session → `403 42501`. Die Action als B mit As Session-ID (auto und `manual`) → `filled:0`, A unverändert, kein Abruf. Seiten von A → 404 ohne As Daten (Abnahme + Security; Policies `sessions_*_own`/`catches_*_own` in `pg_policies`).
-- [x] **AC-20**: URL nur aus Konstanten und gerundeten Koordinaten (`open-meteo.ts:21-37`, Rundung `:25-26` und `core.ts:86`), nur Header `accept` (`:63-68`); `open-meteo.test.ts` 14/14 (Security-Gegenprobe). Die tatsächlich ausgehende Anfrage wurde nicht mitgeschnitten.
-- [x] **AC-21**: `GET /account/export` → `version: 3`, `weather` je Session und Fang (bei `ok` mit allen Werten, `weather_label`, `fetched_at`, sonst nur `{status}`), keine internen Zeitstempel; alle Felder von Version 2 bleiben (Abnahme + Regression).
-- [x] **AC-22**: Fang/Session gelöscht → 0 Zeilen; Konto gelöscht → Sessions, Fänge, Profil 0 (Abnahme, Security; FKs mit `ON DELETE CASCADE`).
-- [x] **AC-23**: `open-meteo.ts:1` `import 'server-only'`; 0 Treffer für `open-meteo`/`archive-api` in 21–24 Client-Chunks und in `.next/static` (Security, Abnahme).
-- [x] **AC-24**: `/privacy` enthält „Wetterdaten“ mit allen geforderten Aussagen (`privacy/page.tsx:70-88`; Abnahme).
+- [x] **AC-19**: B mit As `sessionId`/`catchId` (auto und manuell) → `filled:0`, As Zeilen unverändert, keine fremde Reservierung, B ohne Budgetverbrauch; B mit eigener Session und As `catchId` → `filled:0`; `weather_fetch_log` für B `403`; As Fang-Seite für B `404` (Abnahme + Security r2).
+- [x] **AC-20**: `open-meteo.ts`/`core.ts` nicht im Diff; Rundung `open-meteo.ts:25-26`; neue Log-Zeile `actions.ts:233` ohne Position oder IDs (Abnahme + Security r2). Ausgehende Anfrage nicht mitgeschnitten (NOT VERIFIED).
+- **AC-21** — unverändert seit Lauf 1 (Export-Route nicht im Diff); Regression r2 bestätigt `version`-Export mit 25 Sessions. Zum Budget-Protokoll im Export → BUG-10.
+- **AC-22** — unverändert seit Lauf 1; Regression r2: Kontolöschung entfernt jetzt auch `weather_fetch_log`.
+- [x] **AC-23**: `server-only`/`'use server'`; 0 Treffer für `open-meteo`, `archive-api`, `claim_weather_budget`, `weather_fetch_log`, `SERVICE_ROLE` in 31 Client-Chunks und in `.next/static` (Abnahme + Security r2).
+- **AC-24** — unverändert seit Lauf 1; `/privacy` nicht im Diff.
 
 ## Edge Cases
-- [x] **EC-1**: Garantie aus `design.md` im Code: Trigger-Reset bei geänderter Bezugszeit (`weather.sql:166-172`) + bedingtes Schreiben `.eq(started_at/caught_at, alte Zeit)` (`actions.ts:152-156`). Provoziert: verspätetes Schreiben mit alter Zeit → 0 Zeilen (Abnahme).
-- [x] **EC-2**: `.not('latitude','is',null)` + Statusfilter, nur `update`, nie `upsert` (`actions.ts:149-156`). Provoziert: nach Löschen bzw. entfernter Position → 0 Zeilen, kein Fehler (Abnahme, Security).
-- [x] **EC-3**: `.in('weather_status',['pending','failed'])` (`actions.ts:156`), Wetter in derselben Zeile. 3 bzw. 5 parallele Aufrufe → genau ein Snapshot pro Eintrag, keine Fehler (Abnahme, Security). Nebenwirkung siehe BUG-2.
-- [x] **EC-4**: `pending` wird beim nächsten Öffnen immer nachgeholt (`format.ts:92-95`), live mit 3 offenen Einträgen (Abnahme).
-- [x] **EC-5**: 60 offene Fänge: GET 0,9 s; erster Aufruf `filled:50` in 1,1 s, zweiter `filled:11`; Bündeln `core.ts:82-105`; höchstens 4 parallel (neuer Unit-Test) (Abnahme, Owner).
-- [x] **EC-6**: `ok` ohne Bewölkung, unbekannter Code 42, ohne Windrichtung → „Bewölkung –“, „Wetter –“, „22 km/h“ (Abnahme, HTML).
-- [ ] BUG **EC-7**: 429 zählt als Fehlschlag, Abkühlzeit greift beim Neuladen (Abnahme; `open-meteo.test.ts:138`). Die Abkühlzeit lässt sich aber mit parallelen Aufrufen und über die Datenbank-Schnittstelle umgehen, sodass ein Nutzer das gemeinsame Kontingent erschöpfen kann → BUG-2.
-- [x] **EC-8**: Zeitumstellung 29.03.2026: Fang 00:50Z → Stunde 01:00Z, Anzeige „03:00 Uhr“, Werte gleich der Archiv-Abfrage; Start um Mitternacht → „00:00 Uhr“ (Abnahme).
-- [x] **EC-9**: Wenige Minuten alt → `ok` (Forecast); 2019 → `ok` (Archiv); 1935 → `failed` (Abnahme).
-- [x] **EC-10**: Greifswalder Bodden (54,24 / 13,55, Open-Meteo `elevation 0.0`) → `ok` (Abnahme).
+- [x] **EC-1**: echter Race — Nachholen gestartet, 120 ms später `PATCH caught_at` → `filled:0`, Zeile `pending`; nächstes Öffnen → Wetter zur neuen Stunde. Garantie `actions.ts:187-195` + Trigger (Abnahme r2).
+- [x] **EC-2**: echter Race — Session 120 ms nach Start gelöscht → `filled:0`, kein Fehler, nichts neu angelegt (Abnahme r2).
+- [x] **EC-3**: 5 bzw. 6 parallele Aufrufe → genau ein Schreiber (gleiches `weather_fetched_at`), die übrigen `filled:0` ohne Netzabruf; Garantie: bedingte Reservierung `actions.ts:129-150` + bedingtes Schreiben `:194` (Abnahme + Security r2).
+- [x] **EC-4**: erneut geöffnete Fang-Seite mit `needed:true`, Nachholen → `ok` (Abnahme r2). Schließen der App mitten im Abruf NOT VERIFIED.
+- [x] **EC-5**: 60 offene Fänge: Detailansicht 735 ms mit „Wetter wird abgerufen …“, Nachholen 50 Einträge in 445 ms (Abnahme r2).
+- **EC-6** — unverändert seit Lauf 1.
+- [x] **EC-7**: aufgebrauchtes Budget → `{"status":"error"}` für automatisch und manuell, kein Abruf, Zeilen unverändert; innerhalb der Abkühlzeit weder Abruf noch Budgetverbrauch (Abnahme + Security r2). Echtes 429 von Open-Meteo nicht provoziert (Code unverändert seit Lauf 1).
+- **EC-8, EC-9, EC-10** — unverändert seit Lauf 1; `core.ts`/`open-meteo.ts` nicht im Diff.
 
 ## Security Audit Results
-- [x] Authentication: ohne Cookie → `307 /login` für Detail, Fang-Seite, Export und die Action (`actions.ts:166`, `require-user.ts:10-17`); `anon` ohne Tabellenrechte (`401`).
-- [x] Authorization: zwei Nutzer über REST, Action und Seiten — nichts von A für B lesbar, änderbar oder auslösbar (siehe AC-19); Policies und FK `catches_session_owner_fkey` in der DB.
-- [x] Input validation: `sessionId` mit SQL-/PostgREST-Fragmenten, `manual:"true"`, Array → `{status:"error"}` (`z.uuid()`); Wetterwerte aus Open-Meteo werden auf Typ und Grenzen geprüft (`core.ts:122-129`); DB-Regeln lehnen `<script>` als Status und Werte außerhalb der Grenzen ab (`400 23514`); kein SSRF (URL aus Konstanten).
-- [!] Rate limiting der Action pro Nutzer oder IP: NOT VERIFIED — nicht umgesetzt (im Design nicht versprochen, optional fürs MVP). Die versprochene Abkühlzeit lässt sich umgehen → BUG-2.
-- [!] Brute force, Enumeration, Massen-Registrierung: NOT VERIFIED — nicht anwendbar, PROJ-3 prüft keine Zugangsdaten (PROJ-1-Code unverändert, `git diff --stat b94c166..HEAD -- src/proxy.ts src/lib/auth …` leer).
-- [x] Credentials never appear in the URL: PROJ-3 fügt kein Formular hinzu; „Wetter erneut abrufen“ ist `type="button"` (`retry-weather-button.tsx:36`).
-- [x] No secrets in the client bundle: lokaler Service-Role-Key 0× in `.next`; `SUPABASE_SERVICE_ROLE_KEY`, `service_role`, `weather_requested_at` 0× in `.next/static`.
-- [x] Sensitive data in responses: Action liefert nur `{status, filled, failed}`; Übersicht ohne Positionen und Werte; Export mit `Cache-Control: private, no-store`.
-- [x] Positionen in URLs und Logs: Action per POST mit nur der Session-ID; Logs nur mit Art und HTTP-Status (`open-meteo.ts:48`, `actions.ts:66-70`); `logging.serverFunctions: false`.
-- [x] CSRF: Action mit fremder `Origin` → `500 Invalid Server Actions request.`
-- [x] Security headers (Stichprobe `/privacy`): `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, HSTS mit `includeSubDomains`.
+- [x] Authentication: Fang-Seite und Action ohne Cookie → `307 /login` (Security r2).
+- [x] Authorization: siehe AC-19; `weather_fetch_log` für `authenticated` bei GET/POST/PATCH/DELETE `403 42501`, für `anon` `401`; RLS an, 0 Policies (Security r2).
+- [x] Budget-Funktion `claim_weather_budget`: nur `auth.uid()`, kein Parameter für fremde Nutzer (Aufruf mit `p_user` → `404`), manipuliertes JWT → `401`; Randwerte 0/−1/51/null/±2³¹ → `false`, Nicht-Zahlen → `400`; `GET` → `405`; `SECURITY DEFINER` mit leerem `search_path`, alle Bezüge qualifiziert; `anon` ohne Ausführungsrecht (Security r2).
+- [x] Advisory-Lock unter Last: 20 × 50 parallel → genau 4 × `true` (Summe 200); 40 × 7 parallel → genau 28 × `true` (Summe 196) (Security r2).
+- [x] Input validation: `catchId` mit SQL-/PostgREST-Fragmenten, Zahlen, Arrays, Objekten, 10.000 Zeichen → `{"status":"error"}` (Security r2).
+- [!] Rate limiting der Action allgemein: NOT VERIFIED — nicht umgesetzt (optional fürs MVP). Die Anfragen an Open-Meteo begrenzt jetzt das Budget (BUG-2 geschlossen).
+- [!] Brute force, Enumeration, Massen-Registrierung: NOT VERIFIED — nicht anwendbar, PROJ-3 prüft keine Zugangsdaten; `src/lib/auth` und `src/proxy.ts` nicht im Diff.
+- [x] Credentials in der URL: kein neues Formular; die Action läuft per POST (Security r2).
+- [x] No secrets in the client bundle: Service-Role-, Secret- und JWT-Werte 0× in `.next/static` (Security r2).
+- [x] Sensitive data in responses / Logs: Action liefert nur `{status}` bzw. `{status, filled, failed}`; im Dev-Log 0 Treffer für Test-IDs, Koordinaten, E-Mail-Adressen (Security r2).
+- [x] CSRF: fremde `Origin` → `500` (Security r2).
+- [x] Security headers (Stichprobe `/login`): alle vier vorhanden (Security r2).
 
 ## Regression
-- [x] **PROJ-2-Garantien in der DB** (im Migrations-Replay, als `authenticated`): höchstens eine laufende Session, keine Überschneidung, Fangzeit-Garantie, keine Wiedereröffnung, nur Besitzer, Kaskade bei Kontolöschung. Trigger-Reihenfolge `*_check_*` → `*_reset_weather` → `*_set_updated_at`, `reset_weather` schreibt nur `weather_*`-Spalten.
-- [x] **PROJ-2-Abläufe über die laufende App** (Server Actions per HTTP): Session starten, zweiter Start, Fang mit und ohne GPS, doppelte Fang-ID, Fang in der Zukunft, ungültige Länge, bearbeiten, beenden (auch zweimal), nachtragen, über 48 h, Überschneidung, Fang nachtragen, Fang außerhalb nach Zeitänderung, Position entfernen, Fang und Session löschen, Zugriff als B, Konto mit laufender Session löschen, Export (alle Felder aus Version 2 vorhanden).
-- [x] **Gemeinsame Seiten per HTML:** Übersicht, Leiste der aktiven Session auf `/` und `/account`, `/start`, Detailansicht (Kennzahl, Positionen mit Herkunft, leerer Zustand), Fang bearbeiten, Session bearbeiten, Nachtragen, `/privacy` (PROJ-2-Abschnitt unverändert).
-- [x] **PROJ-1:** Code unverändert; Login setzt das Cookie, Abgemeldete werden umgeleitet, öffentliche Seiten liefern 200, Konto-Seite vollständig.
-- [ ] BUG **Suite deterministisch:** siehe BUG-1.
+- [x] **PROJ-1:** Profil bei Registrierung, Umleitungen ohne Anmeldung (7 Adressen `307`, 4 öffentliche `200`), Login setzt Cookie, Angemeldete von `/login`/`/register` weg, Konto-Seite vollständig, Export `200` als Datei, Kontolöschung mit falschem Passwort abgelehnt und mit richtigem vollständig (inkl. `weather_fetch_log`), Logout löscht Cookie, fremde Daten `404`/`[]` (Regression r2).
+- [x] **PROJ-2:** Session starten, Fang eintragen, Übersicht mit 20 + „Weitere laden“ (6 weitere, keine Überschneidung, keine Positionen, ungültiger Cursor abgelehnt), Detailansicht, Session löschen mit Kaskade, alle Formularseiten `200`, DB-Garantien live (`409 sessions_one_running_per_user`, `400 sessions_no_overlap`, `400 catch_outside_session`) und im Replay (Regression r2).
+- [x] **BUG-1 geschlossen:** `session-list.test.tsx` 336 von 336 parallelen Läufen grün (vorher 1 Fehlschlag in 48); `session-list.tsx:51` entfernt die Warnung jetzt vor der Transition (Regression r2).
 
 ## E2E Tests
 - Status: **not run** (run `/e2e-tests` for critical flows)
 
 ## Not Verified In This Run
-- [!] Cross-Browser (Chrome / Firefox / Safari) — `/qa` läuft ohne Browser.
-- [!] Layout bei 375 / 768 / 1440 px, Farben (Lake-Kacheln, vertiefte Fläche) — braucht einen echten Viewport.
-- [!] Das sichtbare Einblenden der Kacheln ohne Neuladen (AC-6) und das Umschalten des Hinweises beim Nachtragen (AC-18) im Browser — belegt nur durch Unit-Tests und Code.
-- [!] Die tatsächlich ausgehende Anfrage an Open-Meteo (Parameter, Header) — nicht mitschneidbar, belegt durch Code und `open-meteo.test.ts`.
-- [!] Echte Races für EC-1/EC-2 — nicht provoziert; die Garantien sind im Code und in der DB bestätigt, verspätete Schreibversuche einzeln provoziert.
-- [!] Obergrenzen 50 / 4 / 8 s zur Laufzeit voll ausgereizt — nur 50 live (EC-5), 4 per Unit-Test, 8 s per Code; das Kontingent von Open-Meteo wurde geschont.
-- [!] Rate limiting pro Nutzer oder IP — nicht umgesetzt (siehe BUG-2).
+- [!] Cross-Browser (Chrome / Firefox / Safari) und Layout bei 375 / 768 / 1440 px — kein Browser. (Der Build-Lauf hat Screenshots bei 375 px hell und dunkel gemacht; das ist kein QA-Beleg.)
+- [!] Sichtbares Einblenden der Kacheln ohne Neuladen (AC-6), Umschalten des Hinweises beim Nachtragen (AC-18), Ein-/Ausblenden der Warnung bei „Weitere laden“ — belegt nur durch Unit-Tests und Code.
+- [!] Die tatsächlich ausgehende Anfrage an Open-Meteo (AC-20) — nicht mitschneidbar; Code unverändert seit Lauf 1.
+- [!] Echtes 429 / erschöpftes Kontingent bei Open-Meteo (EC-7) — nicht provoziert, um das Kontingent zu schonen; die Budget-Ablehnung wurde live geprüft.
+- [!] Schließen der App mitten im Abruf (EC-4).
+- [!] Rate limiting der Action allgemein — nicht umgesetzt (optional fürs MVP).
 - [!] Features mit Status „Deployed“ — es gibt keine; geprüft wurden PROJ-1 und PROJ-2 (Approved).
 
 ## Bugs Found
 
-#### BUG-1: Instabiler Test in der Session-Liste (Race in `SessionList`)
-- **Severity:** High (Step-5-Regel: jeder Fehlschlag der Suite) — Ursache liegt im PROJ-2-Code, die UI-Auswirkung ist nur Low
-- **Steps to Reproduce:**
-  1. `src/components/fishing/session-list.test.tsx` mehrfach parallel unter Last laufen lassen (z. B. 6 Prozesse gleichzeitig).
-  2. Expected: 8/8 grün, jedes Mal.
-  3. Actual: gelegentlich 1 fehlgeschlagen (HEAD: 1× in 48 Läufen; vor PROJ-3 auf `b94c166`: 3× in 94 Läufen — also schon vorher vorhanden).
-- **Ursache:** `session-list.tsx:48-63` — `setError(null)` läuft im async `startTransition` vor dem `await`, `setItems`/`setNextCursor` danach außerhalb der Transition. Die Liste kann schon neu sein, während die Warnung noch steht. In der App bleibt die alte Warnung nach einem erfolgreichen „Weitere laden“ kurz sichtbar.
-- **Priority:** Fix before deployment (die Suite muss deterministisch sein)
+### Aus Lauf 1
+- **BUG-1 (High, Suite-Regel) — geschlossen.** Race in `SessionList`; Fix `session-list.tsx:51`; 336/336 parallele Läufe grün.
+- **BUG-2 (Medium) — geschlossen.** Budget pro Nutzer (`claim_weather_budget`, 200 Einträge / 60 min, Sperre pro Nutzer) und bedingte Reservierung vor dem Abruf; parallele Aufrufe → ein Abruf; Zurücksetzen per REST verbraucht nur das eigene Budget und endet bei 200.
+- **BUG-3 (Low) — geschlossen** für das automatische Nachholen (Fang an Platz 61 wird zuerst geholt). Der Knopf ist als BUG-7 neu erfasst.
+- **BUG-4 (Low) — geschlossen ohne Änderung.** Die Lanes bestätigen: „Versuche es später erneut“ trifft in der Abkühlzeit zu.
+- **BUG-5 (Low) — geschlossen ohne Änderung.** Die Lanes bestätigen: keine gehostete Datenbank mit Daten.
 
-#### BUG-2: Abkühlzeit gegen eine Anfrageflut an Open-Meteo lässt sich umgehen
-- **Severity:** Medium
-- **Steps to Reproduce:**
-  1. Session und Fang auf `pending`, dann 5 parallele Aufrufe von `fillMissingWeather` mit dem eigenen Konto.
-  2. Expected (`design.md` → Technische Entscheidungen, EC-7): „Neuladen oder Tippen in Serie löst keine Anfrageflut aus … gilt auch über Geräte hinweg.“
-  3. Actual: Alle 5 Aufrufe laufen durch den Abrufpfad (je 0,8–0,9 s statt 0,3 s), zwei davon schreiben je einen Eintrag — beide hatten beide Einträge ausgewählt und Open-Meteo gefragt. `isDue` liest `weather_attempted_at`, gesetzt wird der Wert erst nach dem Abruf (`actions.ts:73-79, 138-147`).
-  4. Zweiter Weg: `PATCH catches?id=eq.<eigener Fang> {"weather_attempted_at":null}` mit dem eigenen Token → `200`, der nächste Aufruf fragt sofort erneut.
-- **Auswirkung:** Ein einzelner Nutzer kann in einer Schleife beliebig viele Anfragen von der Server-IP auslösen und das kostenlose Kontingent erschöpfen; danach bekommen alle Nutzer „Ohne Wetterdaten“. Kein Datenverlust, keine fremden Daten.
-- **Priority:** Fix before deployment
+### Neu in diesem Lauf (alle Low)
 
-#### BUG-3: Die Fang-Seite holt ihren eigenen Fang nicht bevorzugt
+#### BUG-6: Zweites Gerät sieht „Wetter wird abgerufen …“ bis zum Neuladen
 - **Severity:** Low
-- **Steps to Reproduce:**
-  1. Session mit mehr als 50 offenen Einträgen, Fang-Seite eines späten Fangs öffnen.
-  2. Expected: Der geöffnete Fang bekommt sein Wetter (AC-6, AC-9).
-  3. Actual: Die Action nimmt immer zuerst die Session, dann die Fänge nach Fangzeit (`actions.ts:82-98`); der geöffnete Fang bleibt bis zum nächsten Öffnen bei „Wetter wird abgerufen …“.
-- **Priority:** Fix before deployment (klein)
-
-#### BUG-4: Warnung beim Knopf auch während der Abkühlzeit
-- **Severity:** Low
-- **Steps to Reproduce:**
-  1. Innerhalb von 10 s nach einem Versuch erneut „Wetter erneut abrufen“ tippen.
-  2. Actual: Antwort `filled:0, failed:false` (kein Abruf), angezeigt wird „Wetter gerade nicht verfügbar. Versuche es später erneut.“ (`retry-weather-button.tsx:27-30`).
-- **Einordnung:** Die Meldung trifft in der Abkühlzeit inhaltlich zu („versuche es später erneut“). Empfehlung: **keine Änderung**.
+- **Steps:** Fang `pending`, Gerät 1 hat reserviert und ruft ab; Gerät 2 öffnet die Fang-Seite.
+- **Expected (AC-6):** Die Werte erscheinen ohne Neuladen. **Actual:** Die Action antwortet `filled:0` (Eintrag in der Abkühlzeit), der Refresh zeigt weiter „Wetter wird abgerufen …“; erst ein Neuladen zeigt die Werte. Neu durch die Reservierung; das Zeitfenster ist kurz.
 - **Priority:** Nice to have
 
-#### BUG-5: Die Migration setzt `updated_at` aller bestehenden Sessions und Fänge neu
+#### BUG-7: „Wetter erneut abrufen“ auf der Fang-Seite bevorzugt den eigenen Fang nicht
 - **Severity:** Low
-- **Steps to Reproduce:** Die Nachbefüllung in `20260930160000_weather.sql:45-51` löst den PROJ-2-Trigger `set_updated_at` aus; bestehende Einträge bekommen den Migrationszeitpunkt als „letzte Änderung“, der auch im Export steht (Regression, aus dem Code abgeleitet).
-- **Einordnung:** Es gibt keine gehostete Datenbank mit echten Daten (PRD: kein Deployment; `features/INDEX.md` → Deployments nur Platzhalter). Beim ersten Einspielen auf einer leeren Datenbank betrifft die Nachbefüllung keine Zeile. Empfehlung: **keine Änderung**.
+- **Steps:** Session mit mehr als 50 fälligen `failed`-Einträgen, Fang-Seite eines späten Fangs, Knopf tippen.
+- **Actual:** `page.tsx:41` gibt dem Knopf keine `catchId`; der Versuch kann den geöffneten Fang auslassen (nur aus dem Code, nicht live provoziert).
 - **Priority:** Nice to have
+
+#### BUG-8: Budget ist „alles oder nichts“, der geöffnete Eintrag geht nicht vor
+- **Severity:** Low
+- **Steps:** Budget weitgehend verbraucht (z. B. 160/200), dann eine Session mit 50 fälligen Einträgen öffnen.
+- **Actual:** `v_used + p_entries > 200 → false`; es wird gar nichts geholt, auch nicht der geöffnete Eintrag. Ein frisch gefangener Fisch kann so bis zu 60 min ohne Wetter bleiben (AC-9 holt es danach nach).
+- **Priority:** Next sprint
+
+#### BUG-9: Parallele Aufrufe verbrauchen Budget, ohne abzurufen
+- **Severity:** Low
+- **Steps:** Session mit fälligen Einträgen, 6 parallele Aufrufe.
+- **Actual:** Das Budget wird vor der Reservierung belastet (`actions.ts:228` vor `:240`); +4 Einheiten für einen Abruf. Trifft nur das eigene Konto und verfällt nach 60 min.
+- **Priority:** Next sprint (zusammen mit BUG-8)
+
+#### BUG-10: Das Budget-Protokoll steht nicht im Datenexport
+- **Severity:** Low
+- **Steps:** `GET /account/export` nach Wetterabrufen.
+- **Actual:** `weather_fetch_log` (Nutzerkennung, Anzahl, Zeitpunkt, höchstens 60 min gespeichert) fehlt im Export. `docs/data-model.md` nimmt es bewusst aus, wie das Protokoll der Login-Bremse; PROJ-1 AC-29 spricht aber von „allen zu ihm gespeicherten Daten“.
+- **Einordnung:** Gleiche Behandlung wie das Login-Brems-Protokoll aus PROJ-1. Empfehlung: bei `/dsgvo` vor dem ersten gehosteten Betrieb bewerten, in `docs/privacy.md` als offener Punkt geführt.
+- **Priority:** Next sprint
+
+#### BUG-11: Restrisiko — kein Gesamtbudget über alle Konten
+- **Severity:** Low (bewusste Designgrenze)
+- **Actual:** Pro Konto höchstens 200 Einträge pro Stunde; mehrere Konten zusammen können das gemeinsame kostenlose Kontingent weiterhin erschöpfen (Registrierung: 5 Konten pro IP und Stunde mit Mail-Bestätigung). Möglicher Ausbau: zusätzliche Gesamtgrenze in `claim_weather_budget`.
+- **Priority:** Vor einem öffentlichen Betrieb bewerten
 
 ### Außerdem festgehalten (kein Bug)
-- **Eigene Wetterwerte über die Datenbank-Schnittstelle änderbar:** Der Besitzer kann per PostgREST eigene Wetterwerte schreiben. Das ist in `design.md` als bewusste Grenze dokumentiert (wie PROJ-2 BUG-4). Die Produktentscheidung „Wetter ist nicht von Hand änderbar“ betrifft die App, die kein solches Feld anbietet. Fremde Daten sind nicht betroffen.
-- **Bedingtes Schreiben prüft nur „Position vorhanden“, nicht „Position gleich“:** Die App ändert Positionen nie, sie entfernt sie nur; der Trigger setzt bei jeder Positionsänderung zurück. Ein Restfall betrifft nur Direktzugriffe auf eigene Daten.
+- Jede Reservierung und jedes Wetterschreiben setzt `updated_at` des Eintrags neu (PROJ-2-Trigger `set_updated_at`). Das Wetter ist Teil des Eintrags; verwandt mit BUG-5, keine Änderung.
+- Eigene Wetterwerte sind über die Datenbank-Schnittstelle änderbar (bewusste Grenze aus `design.md`, wie PROJ-2 BUG-4).
 
 ## Summary
-- **Acceptance Criteria:** 24/24 bestanden (Teile von AC-6, AC-14, AC-18, AC-20 zusätzlich NOT VERIFIED, weil sie einen Browser bzw. einen Mitschnitt bräuchten)
-- **Edge Cases:** 9/10 bestanden, EC-7 mit BUG-2
-- **Bugs Found:** 5 total (0 critical, 1 high, 1 medium, 3 low)
-- **Security:** 9/11 Prüfungen belegt, 2 NOT VERIFIED (Rate limiting pro Nutzer — nicht umgesetzt; Brute force — nicht anwendbar)
-- **Production Ready:** **NO** — BUG-1 (High) ist offen.
-- **Recommendation:** Fix bugs first. Empfohlene Reihenfolge: BUG-1, BUG-2, BUG-3 über `/build`; BUG-4 und BUG-5 ohne Änderung schließen. Danach `/qa` als Re-Verifikation.
+- **Acceptance Criteria:** 24/24 bestanden (13 in diesem Lauf neu ausgeübt, 11 unverändert seit Lauf 1 übernommen); Teile von AC-6, AC-18, AC-20 NOT VERIFIED (Browser bzw. Mitschnitt)
+- **Edge Cases:** 10/10 bestanden (7 neu ausgeübt, 3 übernommen)
+- **Bugs:** Lauf 1: 5 geschlossen (3 behoben, 2 ohne Änderung). Neu: 6 Low, 0 Critical/High/Medium
+- **Security:** 11/13 Prüfungen belegt, 2 NOT VERIFIED (allgemeines Rate limiting — nicht umgesetzt; Brute force — nicht anwendbar)
+- **Production Ready:** **YES** — keine Critical/High-Bugs offen.
+- **Recommendation:** Approved. Die Low-Befunde BUG-6 bis BUG-11 in einem späteren `/refine PROJ-3` bündeln (Vorschlag: Budget in Teilen gewähren und den geöffneten Eintrag vorziehen, Knopf mit `catchId`, ein verzögerter zweiter Refresh). BUG-10 und BUG-11 vor dem ersten gehosteten Betrieb bei `/dsgvo` bzw. `/security-check` bewerten.
 
 > „Production Ready: YES“ heißt *keine Critical/High-Bugs* — nicht, dass alles geprüft wurde. Die NOT-VERIFIED-Punkte oben bleiben offen und brauchen einen Menschen oder `/e2e-tests`.
