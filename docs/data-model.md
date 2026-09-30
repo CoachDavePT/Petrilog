@@ -12,11 +12,11 @@
 |---------|-------------------|------------------------|
 | profiles | Das Konto eines Anglers, eins zu eins verknüpft mit dem Supabase-Auth-Nutzer. Wird bei der Registrierung automatisch angelegt. Enthält nur die Verknüpfung und das Anlagedatum; die E-Mail-Adresse liegt allein beim Auth-Nutzer. Platz für spätere Einstellungen. Verschwindet automatisch mit dem Konto, unbestätigte Konten nach 7 Tagen (PROJ-1). | nur der Nutzer selbst (lesen) |
 | auth_throttle_events | Internes Protokoll der Login-Bremse: Passwortversuche, Mail-Anforderungen und Registrierungen mit E-Mail-Adresse (bei Registrierungen ohne), IP-Adresse, Ergebnis und Zeitpunkt. Wird nach 24 Stunden gelöscht (PROJ-1). | niemand außer dem Server |
-| sessions | Ein Angelausflug: Start, Ende (leer, solange die Session läuft), Position mit Genauigkeit (optional), Gewässername und Notiz (optional) sowie eine Wetter-Momentaufnahme zum Start. | nur der Besitzer |
-| catches | Ein einzelner Fang innerhalb einer Session: Uhrzeit, Fischart, Länge, optional Gewicht, Köder, entnommen oder zurückgesetzt, eigene Position mit Genauigkeit und eine Wetter-Momentaufnahme zur Fangzeit. | nur der Besitzer |
+| sessions | Ein Angelausflug: Start, Ende (leer, solange die Session läuft), Position mit Genauigkeit (optional), Gewässername und Notiz (optional) sowie eine Wetter-Momentaufnahme zum Start (kommt mit PROJ-3). Dauer 1 Minute bis 48 Stunden. Bleibt bis zur Löschung durch den Nutzer bzw. des Kontos (PROJ-2). | nur der Besitzer |
+| catches | Ein einzelner Fang innerhalb einer Session: Uhrzeit, Fischart (bei „Sonstige“ mit Artname), Länge, optional Gewicht, Köder, entnommen oder zurückgesetzt, eine eigene Kopie der Position mit Genauigkeit und Herkunft (GPS, von der Session, ohne) und eine Wetter-Momentaufnahme zur Fangzeit (kommt mit PROJ-3). Bleibt bis zur Löschung durch den Nutzer, der Session bzw. des Kontos (PROJ-2). | nur der Besitzer |
 
 **Bewusst keine eigenen Entitäten:**
-- **Wetter** ist eine Momentaufnahme, die zur Session bzw. zum Fang gehört: Temperatur, Luftdruck, Windgeschwindigkeit, Windrichtung, Bewölkung, Niederschlag, Wettercode und dazu der Status „mit“ oder „ohne Wetterdaten“. Ob das als JSON oder in eigenen Spalten gespeichert wird, entscheidet `/architecture`.
+- **Wetter** ist eine Momentaufnahme, die zur Session bzw. zum Fang gehört: Temperatur, Luftdruck, Windgeschwindigkeit, Windrichtung, Bewölkung, Niederschlag, Wettercode und dazu der Status „mit“ oder „ohne Wetterdaten“. Ob das als JSON oder in eigenen Spalten gespeichert wird, entscheidet `/architecture` für PROJ-3; PROJ-2 legt dafür bewusst nichts vorab an.
 - **Fischarten** sind eine feste Auswahlliste in der App (Barsch, Hecht, Zander … Sonstige), keine Tabelle. Eine eigene Tabelle käme erst infrage, wenn Nutzer eigene Arten anlegen sollen.
 
 ## Beziehungen
@@ -24,7 +24,7 @@
 - Ein Profil hat viele Sessions.
 - Eine Session gehört genau einem Profil und hat viele Fänge.
 - Ein Fang gehört genau einer Session und damit demselben Nutzer. Den Nutzerbezug speichert der Fang zusätzlich selbst, damit die Datenbank die Zugriffsregel (Row Level Security: nur `user_id = auth.uid()`) direkt prüfen kann.
-- Pro Nutzer kann höchstens **eine** Session gleichzeitig laufen, also ohne Ende sein.
+- Pro Nutzer kann höchstens **eine** Session gleichzeitig laufen, also ohne Ende sein. Die Sessions eines Nutzers überschneiden sich zeitlich nie, und jeder Fang liegt zeitlich innerhalb seiner Session. Beides garantiert die Datenbank (PROJ-2).
 - Wird eine Session gelöscht, verschwinden auch ihre Fänge.
 - **Wird ein Konto gelöscht, verschwindet alles:** Profil, Sessions und Fänge hängen am Konto und werden von der Datenbank automatisch mitgelöscht. Jede künftige Tabelle mit Nutzerdaten muss genauso gebunden sein und ergänzt den Datenexport um ihre Daten (festgelegt in PROJ-1).
 - Das Protokoll der Login-Bremse hängt bewusst an keinem Konto. Es zählt auch Versuche für Adressen, zu denen es kein Konto gibt.

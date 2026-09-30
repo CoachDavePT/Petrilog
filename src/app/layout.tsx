@@ -31,6 +31,9 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
+  // PROJ-2 shell: lets the tab bar and the active-session bar reach under the iPhone home indicator
+  // (their padding uses env(safe-area-inset-*), which is 0 without this).
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#E6E2D6' },
     { media: '(prefers-color-scheme: dark)', color: '#141B12' },

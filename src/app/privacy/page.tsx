@@ -1,4 +1,4 @@
-// Privacy policy — placeholder based on docs/privacy.md (PROJ-1: AC-30). The legal text comes from a
+// Privacy policy — placeholder based on docs/privacy.md (PROJ-1: AC-30, PROJ-2: AC-39). The legal text comes from a
 // lawyer or a reputable generator before the first hosted operation (spec → Out of Scope).
 import type { Metadata } from 'next'
 import { FormNotice } from '@/components/auth/form-notice'
@@ -39,6 +39,32 @@ export default function PrivacyPage() {
         <p>
           Bis du dein Konto löschst. Nicht bestätigte Konten löschen wir nach 7 Tagen, Einträge zum Missbrauchsschutz
           nach 24 Stunden.
+        </p>
+
+        <h2>Dein Fangbuch</h2>
+        <p>Für deine Sessions und Fänge speichern wir:</p>
+        <ul>
+          <li>Beginn und Ende jeder Session und die Uhrzeit jedes Fangs.</li>
+          <li>
+            Die Position von Sessions und Fängen (Breite, Länge und Genauigkeit) samt der Angabe, woher sie stammt.
+          </li>
+          <li>Den Gewässernamen und deine Notizen.</li>
+          <li>Deine Fangangaben: Fischart, Länge, Gewicht, Köder und ob der Fisch entnommen oder zurückgesetzt wurde.</li>
+        </ul>
+        <p>
+          Wir speichern diese Daten, damit du dein Fangbuch führen und später auswerten kannst (Vertrag, Art. 6 Abs. 1
+          lit. b DSGVO). Nur du kannst sie sehen. Das sichert die Datenbank selbst ab, nicht nur die App.
+        </p>
+        <p>Deinen Standort fragen wir nur in diesen Momenten ab:</p>
+        <ul>
+          <li>wenn du eine Session startest,</li>
+          <li>wenn du einen Fang speicherst,</li>
+          <li>wenn du eine Session nachträgst und dabei den Schalter für die Position eingeschaltet hast.</li>
+        </ul>
+        <p>Im Hintergrund fragen wir ihn nie ab. Die Position ermittelt dein Gerät bzw. dein Browser.</p>
+        <p>
+          Die Daten bleiben gespeichert, bis du den Eintrag, die Session oder dein Konto löschst. Mit einer Session
+          löschen wir auch ihre Fänge.
         </p>
 
         <h2>Deine Rechte</h2>
