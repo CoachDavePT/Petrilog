@@ -54,6 +54,7 @@ export default async function EditCatchPage({ params }: { params: Promise<{ id: 
       <main className="mx-auto flex w-full max-w-[440px] flex-col gap-6 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] pt-4">
         <WeatherAutoFill
           sessionId={session.id}
+          catchId={entry.id}
           needed={needsAutoFill(entry.weatherState, serverClock())}
           fallback={weatherSection(true)}
         >

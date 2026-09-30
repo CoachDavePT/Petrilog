@@ -46,8 +46,10 @@ export function SessionList({ initialPage, serverNow }: SessionListProps) {
   const loadMore = () => {
     if (!nextCursor || pending) return
     const cursor = nextCursor
+    // Clear the old warning at once (urgent), not inside the transition: the list updates after the
+    // `await` land outside it and could otherwise show next to a stale warning (PROJ-3 QA BUG-1).
+    setError(null)
     startTransition(async () => {
-      setError(null)
       try {
         const result = await loadMoreSessions(cursor)
         if (result.status === 'ok') {

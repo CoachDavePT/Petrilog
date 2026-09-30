@@ -12,6 +12,11 @@
 // late answer for an old time (EC-1), a deleted entry or a removed position (EC-2) and a second device
 // that was faster (EC-3) are all discarded silently. The answer carries counts only: no values, no
 // positions.
+//
+// QA round 2 (BUG-2, EC-7): before asking Open-Meteo the call (1) spends the user's hourly budget in the
+// database (claim_weather_budget: at most 200 entries per hour, under a lock per user) and (2) claims its
+// entries by stamping `weather_attempted_at` conditionally — a parallel call then finds them in their
+// cooldown and fetches nothing. BUG-3: the catch page passes its catch, which goes first.
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -28,10 +33,11 @@ const MAX_ENTRIES = 50
 /** At most this many Open-Meteo requests at the same time. */
 const MAX_PARALLEL_REQUESTS = 4
 
-export type FillWeatherInput = { sessionId: string; manual?: boolean }
+/** `catchId`: the catch whose page asks — it is fetched first (BUG-3). */
+export type FillWeatherInput = { sessionId: string; catchId?: string; manual?: boolean }
 export type FillWeatherResult = { status: 'ok'; filled: number; failed: boolean } | { status: 'error' }
 
-const inputSchema = z.object({ sessionId: idSchema, manual: z.boolean().optional() })
+const inputSchema = z.object({ sessionId: idSchema, catchId: idSchema.optional(), manual: z.boolean().optional() })
 
 type Kind = 'session' | 'catch'
 
@@ -78,11 +84,15 @@ function isDue(entry: EntryColumns, now: Date, manual: boolean): boolean {
   return now.getTime() - new Date(entry.weather_attempted_at).getTime() >= cooldown
 }
 
-/** The session first, then its catches by catch time; at most MAX_ENTRIES. */
-function pickCandidates(session: SessionRow, now: Date, manual: boolean): Candidate[] {
+/** The asking catch first (BUG-3), then the session, then its catches by catch time; at most MAX_ENTRIES. */
+function pickCandidates(session: SessionRow, now: Date, manual: boolean, firstCatchId?: string): Candidate[] {
+  const catches = session.catches ?? []
+  const first = catches.filter((c) => c.id === firstCatchId)
+  const rest = catches.filter((c) => c.id !== firstCatchId)
   const entries: { kind: Kind; row: EntryColumns; time: string }[] = [
+    ...first.map((c) => ({ kind: 'catch' as const, row: c, time: c.caught_at })),
     { kind: 'session', row: session, time: session.started_at },
-    ...(session.catches ?? []).map((c) => ({ kind: 'catch' as const, row: c, time: c.caught_at })),
+    ...rest.map((c) => ({ kind: 'catch' as const, row: c, time: c.caught_at })),
   ]
   return entries
     .filter((e) => isDue(e.row, now, manual))
@@ -109,6 +119,34 @@ async function mapLimited<T, R>(items: T[], limit: number, task: (item: T) => Pr
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
   return results
+}
+
+/**
+ * Claims the candidates of one table: stamps `weather_attempted_at` only where the entry is still due —
+ * pending or failed, position present, and not attempted within the cooldown. Returns the claimed ids; a
+ * parallel call that comes second finds them in their cooldown and gets none (BUG-2, EC-3).
+ */
+async function claim(
+  supabase: SupabaseClient,
+  userId: string,
+  kind: Kind,
+  ids: string[],
+  now: Date,
+  cooldownMs: number,
+): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const cutoff = new Date(now.getTime() - cooldownMs).toISOString()
+  const { data, error } = await supabase
+    .from(TABLE[kind])
+    .update({ weather_attempted_at: now.toISOString() })
+    .in('id', ids)
+    .eq('user_id', userId)
+    .not('latitude', 'is', null)
+    .in('weather_status', ['pending', 'failed'])
+    .or(`weather_attempted_at.is.null,weather_attempted_at.lte.${cutoff}`)
+    .select('id')
+  if (error) throw error
+  return new Set(((data ?? []) as { id: string }[]).map((row) => row.id))
 }
 
 function valueColumns(values: WeatherValues) {
@@ -166,7 +204,7 @@ export async function fillMissingWeather(input: FillWeatherInput): Promise<FillW
   const user = await requireUser()
   const parsed = inputSchema.safeParse(input)
   if (!parsed.success) return { status: 'error' }
-  const { sessionId } = parsed.data
+  const { sessionId, catchId } = parsed.data
   const manual = parsed.data.manual === true
 
   try {
@@ -183,7 +221,27 @@ export async function fillMissingWeather(input: FillWeatherInput): Promise<FillW
     if (!data) return { status: 'ok', filled: 0, failed: false }
 
     const now = new Date()
-    const candidates = pickCandidates(data as SessionRow, now, manual)
+    const due = pickCandidates(data as SessionRow, now, manual, catchId)
+    if (due.length === 0) return { status: 'ok', filled: 0, failed: false }
+
+    // The user's hourly budget, decided in the database under a lock per user (BUG-2, EC-7).
+    const { data: allowed, error: budgetError } = await supabase.rpc('claim_weather_budget', {
+      p_entries: due.length,
+    })
+    if (budgetError) throw budgetError
+    if (allowed !== true) {
+      console.warn('[weather] fill refused: hourly budget used up')
+      return { status: 'error' }
+    }
+
+    // Claim before asking Open-Meteo: a parallel call gets nothing to fetch (BUG-2, EC-3).
+    const cooldown = manual ? MANUAL_RETRY_COOLDOWN_MS : AUTO_RETRY_COOLDOWN_MS
+    const idsOf = (kind: Kind) => due.filter((c) => c.kind === kind).map((c) => c.id)
+    const [sessions, catches] = await Promise.all([
+      claim(supabase, user.id, 'session', idsOf('session'), now, cooldown),
+      claim(supabase, user.id, 'catch', idsOf('catch'), now, cooldown),
+    ])
+    const candidates = due.filter((c) => (c.kind === 'session' ? sessions : catches).has(c.id))
     if (candidates.length === 0) return { status: 'ok', filled: 0, failed: false }
 
     const byKey = new Map(candidates.map((c) => [c.key, c]))

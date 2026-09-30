@@ -13,6 +13,8 @@ import { fillMissingWeather } from '@/lib/weather/actions'
 
 type WeatherAutoFillProps = {
   sessionId: string
+  /** The catch whose page this is — fetched first (BUG-3). */
+  catchId?: string
   /** Whether the session or one of its catches needs weather now (`needsAutoFill`). */
   needed: boolean
   /** The weather section as the page rendered it. */
@@ -21,7 +23,7 @@ type WeatherAutoFillProps = {
   fallback?: ReactNode
 }
 
-export function WeatherAutoFill({ sessionId, needed, children, fallback }: WeatherAutoFillProps) {
+export function WeatherAutoFill({ sessionId, catchId, needed, children, fallback }: WeatherAutoFillProps) {
   const router = useRouter()
   const started = useRef(false)
   const [callFailed, setCallFailed] = useState(false)
@@ -29,13 +31,13 @@ export function WeatherAutoFill({ sessionId, needed, children, fallback }: Weath
   useEffect(() => {
     if (!needed || started.current) return
     started.current = true
-    fillMissingWeather({ sessionId })
+    fillMissingWeather(catchId ? { sessionId, catchId } : { sessionId })
       .then((result) => {
         if (result.status === 'ok') router.refresh()
         else setCallFailed(true)
       })
       .catch(() => setCallFailed(true))
-  }, [needed, sessionId, router])
+  }, [needed, sessionId, catchId, router])
 
   return <>{callFailed && fallback !== undefined ? fallback : children}</>
 }

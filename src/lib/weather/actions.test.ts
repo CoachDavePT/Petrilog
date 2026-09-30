@@ -10,12 +10,21 @@ type Builder = { table: string; calls: { method: string; args: unknown[] }[] }
 const builders: Builder[] = []
 let readResult: Result = { data: null, error: null }
 let writeResult: (b: Builder) => Result = () => ({ data: [{ id: 'x' }], error: null })
+/** The claim step (BUG-2): by default every requested id is claimed. */
+let claimResult: (b: Builder) => Result = (b) => ({
+  data: ((b.calls.find((c) => c.method === 'in' && c.args[0] === 'id')?.args[1] ?? []) as string[]).map((id) => ({ id })),
+  error: null,
+})
+const rpc = vi.fn()
+
+const isClaim = (b: Builder) =>
+  b.calls.some((c) => c.method === 'update' && !('weather_status' in (c.args[0] as Record<string, unknown>)))
 
 const from = vi.fn((table: string) => {
   const record: Builder = { table, calls: [] }
   builders.push(record)
   const builder: Record<string, unknown> = {}
-  for (const method of ['select', 'eq', 'order', 'maybeSingle', 'update', 'not', 'in']) {
+  for (const method of ['select', 'eq', 'order', 'maybeSingle', 'update', 'not', 'in', 'or']) {
     builder[method] = (...args: unknown[]) => {
       record.calls.push({ method, args })
       return builder
@@ -23,7 +32,8 @@ const from = vi.fn((table: string) => {
   }
   builder.then = (resolve: (r: Result) => unknown, reject: (e: unknown) => unknown) => {
     const isWrite = record.calls.some((c) => c.method === 'update')
-    return Promise.resolve(isWrite ? writeResult(record) : readResult).then(resolve, reject)
+    const result = !isWrite ? readResult : isClaim(record) ? claimResult(record) : writeResult(record)
+    return Promise.resolve(result).then(resolve, reject)
   }
   return builder
 })
@@ -34,7 +44,7 @@ const revalidatePath = vi.fn()
 
 vi.mock('server-only', () => ({}))
 vi.mock('next/cache', () => ({ revalidatePath: (...a: unknown[]) => revalidatePath(...a) }))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ from }) }))
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ from, rpc }) }))
 vi.mock('@/lib/auth/require-user', () => ({ requireUser: () => requireUser() }))
 vi.mock('./open-meteo', () => ({ fetchOpenMeteo: (...a: unknown[]) => fetchOpenMeteo(...a) }))
 vi.spyOn(console, 'error').mockImplementation(() => undefined)
@@ -99,7 +109,8 @@ function openMeteoDay(day = '2026-09-30') {
   }
 }
 
-const writes = () => builders.filter((b) => b.calls.some((c) => c.method === 'update'))
+const writes = () => builders.filter((b) => b.calls.some((c) => c.method === 'update') && !isClaim(b))
+const claims = () => builders.filter(isClaim)
 const updateOf = (b: Builder) => b.calls.find((c) => c.method === 'update')!.args[0] as Record<string, unknown>
 const callsOf = (b: Builder, method: string) => b.calls.filter((c) => c.method === method).map((c) => c.args)
 
@@ -113,6 +124,11 @@ beforeEach(() => {
   requireUser.mockReset().mockResolvedValue({ id: USER })
   readResult = { data: session(), error: null }
   writeResult = () => ({ data: [{ id: 'x' }], error: null })
+  claimResult = (b) => ({
+    data: ((b.calls.find((c) => c.method === 'in' && c.args[0] === 'id')?.args[1] ?? []) as string[]).map((id) => ({ id })),
+    error: null,
+  })
+  rpc.mockReset().mockResolvedValue({ data: true, error: null })
 })
 
 describe('guards', () => {
@@ -228,6 +244,79 @@ describe('fetching and writing (AC-1 – AC-3, AC-20, EC-5)', () => {
       ['archive', '2019-06-01'],
       ['archive', '2019-06-02'],
     ])
+  })
+})
+
+describe('budget and claims (QA round 2: BUG-2, BUG-3)', () => {
+  it('spends the hourly budget for the due entries before anything else', async () => {
+    readResult = { data: session({}, [catchRow(1), catchRow(2)]), error: null }
+    await fillMissingWeather({ sessionId: SESSION })
+    expect(rpc).toHaveBeenCalledWith('claim_weather_budget', { p_entries: 3 })
+  })
+
+  it('fetches nothing when the budget is used up, and says so as an error (EC-7)', async () => {
+    rpc.mockResolvedValue({ data: false, error: null })
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    expect(await fillMissingWeather({ sessionId: SESSION })).toEqual({ status: 'error' })
+    expect(claims()).toHaveLength(0)
+    expect(fetchOpenMeteo).not.toHaveBeenCalled()
+  })
+
+  it('claims the entries conditionally before asking Open-Meteo (60 s cooldown automatically)', async () => {
+    readResult = { data: session({}, [catchRow(1)]), error: null }
+    await fillMissingWeather({ sessionId: SESSION })
+    const [sessionClaim, catchClaim] = claims()
+    expect(sessionClaim.table).toBe('sessions')
+    expect(catchClaim.table).toBe('catches')
+    expect(updateOf(sessionClaim)).toEqual({ weather_attempted_at: NOW.toISOString() })
+    expect(callsOf(sessionClaim, 'in')).toEqual([['id', [SESSION]], ['weather_status', ['pending', 'failed']]])
+    expect(callsOf(sessionClaim, 'eq')).toEqual([['user_id', USER]])
+    expect(callsOf(sessionClaim, 'not')).toEqual([['latitude', 'is', null]])
+    expect(callsOf(sessionClaim, 'or')).toEqual([
+      ['weather_attempted_at.is.null,weather_attempted_at.lte.2026-09-30T11:59:00.000Z'],
+    ])
+  })
+
+  it('uses the 10 s cooldown for the button', async () => {
+    await fillMissingWeather({ sessionId: SESSION, manual: true })
+    expect(callsOf(claims()[0], 'or')).toEqual([
+      ['weather_attempted_at.is.null,weather_attempted_at.lte.2026-09-30T11:59:50.000Z'],
+    ])
+  })
+
+  it('fetches only what it claimed — a parallel call that came second fetches nothing (EC-3)', async () => {
+    readResult = { data: session({}, [catchRow(1)]), error: null }
+    claimResult = () => ({ data: [], error: null })
+    expect(await fillMissingWeather({ sessionId: SESSION })).toEqual({ status: 'ok', filled: 0, failed: false })
+    expect(fetchOpenMeteo).not.toHaveBeenCalled()
+    expect(writes()).toHaveLength(0)
+  })
+
+  it('writes only the claimed entries', async () => {
+    readResult = { data: session({}, [catchRow(1)]), error: null }
+    claimResult = (b) => ({ data: b.table === 'sessions' ? [{ id: SESSION }] : [], error: null })
+    expect(await fillMissingWeather({ sessionId: SESSION })).toEqual({ status: 'ok', filled: 1, failed: false })
+    expect(writes().map((b) => b.table)).toEqual(['sessions'])
+  })
+
+  it('puts the catch of a catch page first, even beyond the first 50 (BUG-3)', async () => {
+    const many = Array.from({ length: 60 }, (_, i) => ({ ...catchRow(i % 40), id: `c-${i}` }))
+    readResult = { data: session({}, many), error: null }
+    await fillMissingWeather({ sessionId: SESSION, catchId: '0f0e0d0c-0b0a-4908-8706-050403020100' })
+    // an unknown catch id changes nothing: the session is still first
+    expect(writes()[0].table).toBe('sessions')
+
+    builders.length = 0
+    const target = { ...catchRow(3), id: '0f0e0d0c-0b0a-4908-8706-050403020100' }
+    readResult = { data: session({}, [...many, target]), error: null }
+    await fillMissingWeather({ sessionId: SESSION, catchId: target.id })
+    const catchClaim = claims().find((b) => b.table === 'catches')!
+    expect((callsOf(catchClaim, 'in')[0][1] as string[])[0]).toBe(target.id)
+    expect(callsOf(writes()[0], 'eq')).toContainEqual(['id', target.id])
+  })
+
+  it('rejects a malformed catch id', async () => {
+    expect(await fillMissingWeather({ sessionId: SESSION, catchId: 'x' })).toEqual({ status: 'error' })
   })
 })
 

@@ -39,6 +39,13 @@ describe('WeatherAutoFill (AC-6, AC-9)', () => {
     expect(screen.getByText('Wetter wird abgerufen …')).toBeInTheDocument()
   })
 
+  it('passes the catch of a catch page, so it is fetched first (BUG-3)', async () => {
+    action.fillMissingWeather.mockResolvedValue({ status: 'ok', filled: 1, failed: false })
+    const CATCH = '9a1b2c3d-4e5f-4a6b-8c7d-0e1f2a3b4c5d'
+    render(<WeatherAutoFill sessionId={SESSION} catchId={CATCH} needed><p>ausstehend</p></WeatherAutoFill>)
+    await waitFor(() => expect(action.fillMissingWeather).toHaveBeenCalledWith({ sessionId: SESSION, catchId: CATCH }))
+  })
+
   it('does nothing when nothing is missing', async () => {
     render(<WeatherAutoFill sessionId={SESSION} needed={false}><p>Kacheln</p></WeatherAutoFill>)
     await act(async () => {})
