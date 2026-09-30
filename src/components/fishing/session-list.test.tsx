@@ -17,6 +17,7 @@ vi.mock('next/link', () => ({
 import { SessionList } from './session-list'
 
 const NETWORK = 'Keine Verbindung. Bitte versuche es erneut.'
+const NOW = '2026-09-30T12:00:00.000Z'
 
 function item(n: number, overrides: Partial<SessionListItem> = {}): SessionListItem {
   const start = new Date(Date.UTC(2026, 8, 20 - n, 12, 0))
@@ -39,7 +40,7 @@ afterEach(cleanup)
 
 describe('SessionList', () => {
   it('shows the first section in the given order, each card linking to its session (AC-1)', () => {
-    render(<SessionList initialPage={{ items: [item(1), item(2, { endedAt: null, waterName: null })], nextCursor: null }} />)
+    render(<SessionList serverNow={NOW} initialPage={{ items: [item(1), item(2, { endedAt: null, waterName: null })], nextCursor: null }} />)
     expect(links()).toEqual(['/sessions/s-1', '/sessions/s-2'])
     expect(screen.getByText('Gewässer 1')).toBeInTheDocument()
     expect(screen.getByText('Ohne Gewässer')).toBeInTheDocument()
@@ -48,7 +49,7 @@ describe('SessionList', () => {
   })
 
   it('renders nothing for an empty first section', () => {
-    const { container } = render(<SessionList initialPage={{ items: [], nextCursor: null }} />)
+    const { container } = render(<SessionList serverNow={NOW} initialPage={{ items: [], nextCursor: null }} />)
     expect(container).toBeEmptyDOMElement()
   })
 
@@ -56,7 +57,7 @@ describe('SessionList', () => {
     const first: SessionPage = { items: [item(1)], nextCursor: item(1).startedAt }
     actions.loadMoreSessions.mockResolvedValueOnce({ status: 'ok', page: { items: [item(2)], nextCursor: item(2).startedAt } })
     actions.loadMoreSessions.mockResolvedValueOnce({ status: 'ok', page: { items: [item(3)], nextCursor: null } })
-    render(<SessionList initialPage={first} />)
+    render(<SessionList serverNow={NOW} initialPage={first} />)
 
     fireEvent.click(loadMoreButton()!)
     await waitFor(() => expect(links()).toEqual(['/sessions/s-1', '/sessions/s-2']))
@@ -72,7 +73,7 @@ describe('SessionList', () => {
   it('locks the button while loading, so a double tap loads once', async () => {
     let resolve!: (value: unknown) => void
     actions.loadMoreSessions.mockReturnValueOnce(new Promise((r) => (resolve = r)))
-    render(<SessionList initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
+    render(<SessionList serverNow={NOW} initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
 
     fireEvent.click(loadMoreButton()!)
     await waitFor(() => expect(loadMoreButton()).toBeDisabled())
@@ -85,7 +86,7 @@ describe('SessionList', () => {
 
   it('shows the returned message as a warning and keeps what is loaded; a retry works', async () => {
     actions.loadMoreSessions.mockResolvedValueOnce({ status: 'error', message: NETWORK })
-    render(<SessionList initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
+    render(<SessionList serverNow={NOW} initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
 
     fireEvent.click(loadMoreButton()!)
     expect(await screen.findByRole('alert')).toHaveTextContent(NETWORK)
@@ -100,7 +101,7 @@ describe('SessionList', () => {
 
   it('shows „Keine Verbindung" when the action call itself fails', async () => {
     actions.loadMoreSessions.mockRejectedValueOnce(new TypeError('Failed to fetch'))
-    render(<SessionList initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
+    render(<SessionList serverNow={NOW} initialPage={{ items: [item(1)], nextCursor: item(1).startedAt }} />)
 
     fireEvent.click(loadMoreButton()!)
     expect(await screen.findByRole('alert')).toHaveTextContent(NETWORK)
@@ -108,8 +109,30 @@ describe('SessionList', () => {
   })
 
   it('never shows coordinates', () => {
-    render(<SessionList initialPage={{ items: [item(1)], nextCursor: null }} />)
+    render(<SessionList serverNow={NOW} initialPage={{ items: [item(1)], nextCursor: null }} />)
     expect(document.body.textContent).not.toMatch(/\d+,\d{3,}/)
     expect(document.body.textContent).not.toMatch(/±/)
+  })
+
+  it('marks sessions without weather, but not a fetch that is still running (PROJ-3 AC-17)', () => {
+    const state = (status: string, requestedAt = NOW) => ({ weatherState: { status, requestedAt, attemptedAt: null } }) as never
+    render(
+      <SessionList
+        serverNow={NOW}
+        initialPage={{
+          items: [
+            item(1, state('ok')),
+            item(2, state('failed')),
+            item(3, state('no_position')),
+            item(4, state('pending', '2026-09-30T11:58:00.000Z')), // 2 min ago: still running
+            item(5, state('pending', '2026-09-30T11:50:00.000Z')), // 10 min ago: left behind
+          ],
+          nextCursor: null,
+        }}
+      />,
+    )
+    const cards = screen.getAllByRole('listitem')
+    const marked = cards.map((card) => card.textContent?.includes('ohne Wetter'))
+    expect(marked).toEqual([false, true, true, false, true])
   })
 })

@@ -30,6 +30,7 @@ import { backfillSession } from '@/lib/fishing/actions/sessions'
 import { berlinLocalToIso, formatShortDateTime } from '@/lib/fishing/format'
 import { MESSAGES } from '@/lib/fishing/messages'
 import { backfillSessionSchema, noteSchema, sessionTimeErrors, waterNameSchema } from '@/lib/fishing/schemas'
+import { WEATHER_MESSAGES } from '@/lib/weather/messages'
 import { LOCATING_LABEL, SessionTextFields, textField, useEntryId } from './session-start-form'
 import { useLocation, type Position } from './use-location'
 
@@ -216,6 +217,13 @@ export function SessionBackfillForm({ suggestions }: SessionBackfillFormProps) {
               <FormDescription className="text-xs">
                 Ausgeschaltet wird die Session ohne Position gespeichert.
               </FormDescription>
+              {/* PROJ-3 AC-18: with a position, the weather of back then is fetched after saving */}
+              {field.value && (
+                <FormNotice tone="info">
+                  <strong className="font-semibold">{WEATHER_MESSAGES.backfillTitle}:</strong>{' '}
+                  {WEATHER_MESSAGES.backfillText}
+                </FormNotice>
+              )}
             </FormItem>
           )}
         />

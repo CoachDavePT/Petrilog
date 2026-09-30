@@ -39,7 +39,7 @@
 ## Ebene 4: Browser-Bausteine und Kennzeichnung
 
 - [x] T9 [P]  RetryWeatherButton (ruft `fillMissingWeather` mit `manual`, gesperrt mit „Wird abgerufen …“, danach Router-Refresh, bei weiterhin `failed` Warn-Notice) und WeatherAutoFill (einmal pro Seitenaufruf, nur wenn gemeldet wird, dass etwas fehlt; danach Router-Refresh nur, wenn etwas gefüllt wurde; bei gescheitertem Aufruf Zustand „fehlgeschlagen“ mit Button für den Abschnitt); Komponententests  · files: src/components/weather/retry-weather-button.tsx, src/components/weather/weather-auto-fill.tsx, src/components/weather/weather-auto-fill.test.tsx  · → AC-6, AC-9, AC-10, EC-4
-- [ ] T10 [P]  Kennzeichnung und Nachtragen: Session-Karte zeigt „ohne Wetter“ (NoWeatherMarker, Regel `isWithoutWeather`), Fang-Karte das kleine Symbol, Formular „Session nachtragen“ zeigt bei eingeschaltetem Schalter die Info-Notice „Wetter von damals“; bestehende Tests anpassen  · files: src/components/fishing/session-card.tsx, src/components/fishing/catch-card.tsx, src/components/fishing/session-backfill-form.tsx, src/components/fishing/session-forms.test.tsx  · → AC-17, AC-18
+- [x] T10 [P]  Kennzeichnung und Nachtragen: Session-Karte zeigt „ohne Wetter“ (NoWeatherMarker, Regel `isWithoutWeather`), Fang-Karte das kleine Symbol, Formular „Session nachtragen“ zeigt bei eingeschaltetem Schalter die Info-Notice „Wetter von damals“; bestehende Tests anpassen  · files: src/components/fishing/session-card.tsx, src/components/fishing/catch-card.tsx, src/components/fishing/session-backfill-form.tsx, src/components/fishing/session-forms.test.tsx  · → AC-17, AC-18
 
 ## Ebene 5: Seiten verdrahten
 

@@ -17,6 +17,8 @@ import { SessionCard } from './session-card'
 export type SessionListProps = {
   /** The first section, as `listSessions()` returns it. */
   initialPage: SessionPage
+  /** The server's clock (ISO) — for the „ohne Wetter" markers (PROJ-3 AC-17). */
+  serverNow: string
 }
 
 /** Appends `next` to `current`, skipping ids already shown (a section never repeats, but be safe). */
@@ -25,7 +27,8 @@ function appendUnique(current: SessionListItem[], next: SessionListItem[]): Sess
   return [...current, ...next.filter((item) => !seen.has(item.id))]
 }
 
-export function SessionList({ initialPage }: SessionListProps) {
+export function SessionList({ initialPage, serverNow }: SessionListProps) {
+  const now = new Date(serverNow)
   const [basePage, setBasePage] = useState(initialPage)
   const [items, setItems] = useState(initialPage.items)
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor)
@@ -66,7 +69,7 @@ export function SessionList({ initialPage }: SessionListProps) {
       <ul aria-label="Deine Sessions" className="flex flex-col gap-3">
         {items.map((item) => (
           <li key={item.id}>
-            <SessionCard {...item} />
+            <SessionCard {...item} now={now} />
           </li>
         ))}
       </ul>
