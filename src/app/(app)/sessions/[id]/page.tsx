@@ -4,6 +4,8 @@
 // Someone else's, deleted or malformed ids show „Diese Seite gibt es nicht." — the answer never reveals
 // whether the id exists (AC-32). `?end=1` opens „Session beenden" right away (from the 12-hour hint in
 // the active-session bar); `?notice=` carries a short code only (success → toast, others in the content).
+// PROJ-3 (design.md → Komponenten-Struktur): „Wetter beim Start" before „Fänge", filled once after loading
+// when the session or a catch still needs weather; catches without weather carry a small marker.
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -31,6 +33,11 @@ import {
 } from '@/lib/fishing/format'
 import { MESSAGES, noticeFor } from '@/lib/fishing/messages'
 import { getSessionDetail } from '@/lib/fishing/queries'
+import { RetryWeatherButton } from '@/components/weather/retry-weather-button'
+import { WeatherAutoFill } from '@/components/weather/weather-auto-fill'
+import { WeatherSection } from '@/components/weather/weather-section'
+import { needsAutoFill } from '@/lib/weather/format'
+import { WEATHER_MESSAGES } from '@/lib/weather/messages'
 
 export const metadata: Metadata = { title: 'Session · Petrilog' }
 
@@ -67,6 +74,20 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
 
   const catchHref = `/sessions/${session.id}/catches/new`
   const sheetSession = { id: session.id, startedAt: session.startedAt }
+
+  // PROJ-3: fetch missing weather of the session and its catches once after the page loaded (AC-9)
+  const weatherNeeded = [session.weatherState, ...session.catches.map((c) => c.weatherState)].some((state) =>
+    needsAutoFill(state, now),
+  )
+  const weatherSection = (pendingFailed: boolean) => (
+    <WeatherSection
+      heading={WEATHER_MESSAGES.sessionHeading}
+      weather={session.weather}
+      referenceTime={session.startedAt}
+      retry={<RetryWeatherButton sessionId={session.id} />}
+      pendingFailed={pendingFailed}
+    />
+  )
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -165,6 +186,11 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
           </section>
         )}
 
+        {/* PROJ-3: „Wetter beim Start" (AC-14, AC-16), filled automatically after loading (AC-6, AC-9) */}
+        <WeatherAutoFill sessionId={session.id} needed={weatherNeeded} fallback={weatherSection(true)}>
+          {weatherSection(false)}
+        </WeatherAutoFill>
+
         {/* Fänge nach Uhrzeit, älteste zuerst (AC-29) — or the empty state (AC-31) */}
         <section aria-labelledby="session-catches" className="flex flex-col gap-3">
           <h2 id="session-catches" className="text-[20px] font-medium leading-tight text-foreground">
@@ -174,7 +200,7 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             <ul className="flex flex-col gap-3">
               {session.catches.map((entry) => (
                 <li key={entry.id}>
-                  <CatchCard sessionId={session.id} catch={entry} sessionStartedAt={session.startedAt} />
+                  <CatchCard sessionId={session.id} catch={entry} sessionStartedAt={session.startedAt} now={now} />
                 </li>
               ))}
             </ul>
@@ -184,8 +210,6 @@ export default async function SessionDetailPage({ params, searchParams }: Sessio
             </p>
           )}
         </section>
-
-        {/* Platz für die Wetterdaten aus PROJ-3 — bleibt in PROJ-2 leer. */}
 
         {/* Hauptaktion unten im Daumenbereich; „Session beenden" als Zweitaktion (nur laufend) */}
         <div className="sticky bottom-0 -mx-5 mt-auto flex flex-col gap-3 bg-background/95 px-5 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] pt-3 backdrop-blur-sm supports-[backdrop-filter]:bg-background/85">

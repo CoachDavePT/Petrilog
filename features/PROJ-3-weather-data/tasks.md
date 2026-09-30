@@ -43,7 +43,7 @@
 
 ## Ebene 5: Seiten verdrahten
 
-- [ ] T11  Detailansicht: WeatherSection „Wetter beim Start“ an der Stelle des Platzhalters, vor „Fänge“, mit RetryWeatherButton und WeatherAutoFill (meldet, ob Session oder ein Fang nachgeholt werden muss); Fang-Seite: WeatherSection „Wetter beim Fang“ über dem Formular, WeatherAutoFill für die Session des Fangs. Danach live gegen die lokale Supabase und Open-Meteo prüfen: Session starten, Fang speichern, nachtragen (auch Jahre zurück), Zeit ändern, Position entfernen, Open-Meteo nicht erreichbar, zweiter Nutzer  · files: src/app/(app)/sessions/[id]/page.tsx, src/app/(app)/sessions/[id]/catches/[catchId]/page.tsx  · → AC-1, AC-2, AC-5, AC-6, AC-9, AC-14, AC-15, AC-16
+- [x] T11  Detailansicht: WeatherSection „Wetter beim Start“ an der Stelle des Platzhalters, vor „Fänge“, mit RetryWeatherButton und WeatherAutoFill (meldet, ob Session oder ein Fang nachgeholt werden muss); Fang-Seite: WeatherSection „Wetter beim Fang“ über dem Formular, WeatherAutoFill für die Session des Fangs. Danach live gegen die lokale Supabase und Open-Meteo prüfen: Session starten, Fang speichern, nachtragen (auch Jahre zurück), Zeit ändern, Position entfernen, Open-Meteo nicht erreichbar, zweiter Nutzer  · files: src/app/(app)/sessions/[id]/page.tsx, src/app/(app)/sessions/[id]/catches/[catchId]/page.tsx  · → AC-1, AC-2, AC-5, AC-6, AC-9, AC-14, AC-15, AC-16
 
 ## Abdeckung
 

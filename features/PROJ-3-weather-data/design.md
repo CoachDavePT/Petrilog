@@ -278,3 +278,13 @@ Keine.
 ## Offene Fragen
 
 - keine technischen. Die rechtliche Einordnung von Open-Meteo steht in `spec.md` → Offene Fragen.
+
+## Umsetzungsnotizen (`/build`, 2026-09-30)
+
+- **Migration** `20260930160000_weather.sql`: Der Trigger heißt `reset_weather` und hängt als `sessions_reset_weather` bzw. `catches_reset_weather` an beiden Tabellen. Zusätzlich zur Bezugszeit setzt er auch zurück, wenn sich Breite oder Länge **irgendwie** ändern (nicht nur beim Entfernen). So bleibt die Regel „Status ↔ Position“ auch bei direkten Änderungen über die Datenbank-Schnittstelle erfüllt.
+- **WeatherAutoFill lädt nach jeder erfolgreichen Antwort neu**, nicht nur, wenn etwas geschrieben wurde. Grund: Hat ein anderes Gerät das Wetter gerade geholt, schreibt dieser Aufruf nichts, die Seite soll aber trotzdem die Kacheln zeigen statt „Wetter wird abgerufen …“. Eine Schleife entsteht nicht, weil der Baustein pro Seitenaufruf genau einmal läuft (auch unter React StrictMode).
+- **Uhrzeit für „ohne Wetter“:** Session-Karte und Fang-Karte bekommen die Uhrzeit als Prop (`now`). Die Übersicht gibt die Server-Uhr an die Liste weiter, die Detailansicht ihre eigene Server-Uhr. So bleiben die Karten frei von unreinen Aufrufen beim Rendern.
+- **Kacheln:** Beschriftungen dürfen getrennt werden (`hyphens-auto`, Seite ist `lang="de"`). Bei 375 px wird „Niederschlag“ zu „Nieder-schlag“ statt mitten im Wort umzubrechen.
+- **„Wetter erneut abrufen“** zeigt die Warnung auch dann, wenn nur ein anderer Eintrag der Session weiter fehlschlägt. Das ist die einfache Lesart von „noch fehlgeschlagen“ auf Session-Ebene.
+- **Live geprüft** gegen die lokale Supabase und das echte Open-Meteo, 20 Prüfungen mit zwei Nutzern: Speichern ohne Warten (unter 1 s bis zur Detailseite), Wetter erscheint ohne Neuladen, nächste volle Stunde, Fang-Wetter, Zeitänderung verwirft und holt neu (Session und Fang), Session von 2019 aus dem Archiv, Position entfernen, fehlgeschlagen mit Abkühlzeit und Knopf, Kennzeichnung in der Übersicht, Hinweis beim Nachtragen, Export Version 3, Datenschutzerklärung, fremder Nutzer. Dazu Screenshots bei 375 px, hell und dunkel.
+- **Dev-Server:** Während der Live-Prüfung meldete der laufende Dev-Server einen internen Absturz („Jest worker encountered 2 child process exceptions“) und antwortete danach mit 500. Nach einem Neustart sollte das weg sein. Die letzte Prüfung lief deshalb gegen einen Produktions-Build (`next build` + `next start` auf Port 3554). `next build` läuft fehlerfrei durch.

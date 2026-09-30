@@ -53,7 +53,7 @@ function WeatherTileCard({ tile }: { tile: WeatherTile }) {
     <Card className="flex min-w-0 flex-col gap-1.5 rounded-[12px] border-0 bg-lake-100 p-3 text-lake-800 shadow-sm dark:bg-lake-800 dark:text-lake-100 dark:shadow-none">
       <dt className="flex min-w-0 items-center gap-1 text-[12px] font-medium leading-tight">
         <Icon aria-hidden className="size-3.5 shrink-0" />
-        <span className="min-w-0 break-words">{tile.label}</span>
+        <span className="min-w-0 hyphens-auto break-words">{tile.label}</span>
       </dt>
       <dd className="m-0 min-w-0">
         <span aria-hidden className="flex flex-wrap items-baseline gap-x-1 break-words hyphens-auto">
